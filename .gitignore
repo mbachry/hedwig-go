@@ -1,0 +1,8 @@
+bin
+
+# Golang
+*.test
+vendor/
+!vendor/vendor.json
+
+.idea

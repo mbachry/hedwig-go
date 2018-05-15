@@ -1,0 +1,14 @@
+language: go
+go:
+- 1.10.x
+- master
+install:
+- go get -u github.com/client9/misspell/cmd/misspell
+- go get -u honnef.co/go/tools/cmd/megacheck
+
+before_script:
+- go vet ./...
+- gofmt -d *.go
+- misspell -error -locale US *.go
+- megacheck $EXCLUDE_VENDOR
+script: make test

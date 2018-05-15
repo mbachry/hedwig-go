@@ -1,0 +1,27 @@
+{
+    "exclude": ["(^vendor/)", "(^src/protogen/)"],
+    "linters": {
+        "golint": {
+            "type": "golint",
+            "include": "(\\.go$)",
+            "exclude": ["(^vendor/)", "(^contrib/)", "(^src/server/app/mock)", "(^src/server/mock)"]
+        },
+        "pep": {
+            "type": "pep8",
+            "include": "(\\.py$)",
+            "exclude": "(^contrib/)",
+            "severity": {
+                "E221": "disabled",
+                "E401": "warning",
+                "E501": "disabled",
+                "E265": "disabled"
+            }
+        },
+        "text": {
+            "type": "text",
+            "include": "(\\.(txt|py|html?)$)",
+            "exclude": ["(migrations\/.*py$)", "(requirements(\/.*|\\.)txt$)"],
+            "text.max-line-length": 120
+        }
+    }
+}
