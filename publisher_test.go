@@ -42,7 +42,7 @@ func TestPublishNoHooks(t *testing.T) {
 	ctx := context.Background()
 	settings := createTestSettings()
 	settings.MessageRouting = map[MessageRouteKey]string{
-		MessageRouteKey{
+		{
 			MessageType:    "vehicle_created",
 			MessageVersion: "1.0",
 		}: "dev-vehicle-created",
@@ -83,7 +83,7 @@ func TestPublish(t *testing.T) {
 	settings := createTestSettings()
 	settings.MessageDefaultHeadersHook = fakeMessageDefaultHeadersHook.MessageDefaultHeadersHook
 	settings.MessageRouting = map[MessageRouteKey]string{
-		MessageRouteKey{
+		{
 			MessageType:    "vehicle_created",
 			MessageVersion: "1.0",
 		}: "dev-vehicle-created",
@@ -145,7 +145,7 @@ func TestPublishPreSerializeHookError(t *testing.T) {
 	ctx := context.Background()
 	settings := createTestSettings()
 	settings.MessageRouting = map[MessageRouteKey]string{
-		MessageRouteKey{
+		{
 			MessageType:    "vehicle_created",
 			MessageVersion: "1.0",
 		}: "dev-vehicle-created",

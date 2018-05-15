@@ -251,7 +251,7 @@ func TestMessageTopic(t *testing.T) {
 	expectedTopic := "dev-vehicle-created"
 	settings := createTestSettings()
 	settings.MessageRouting = map[MessageRouteKey]string{
-		MessageRouteKey{
+		{
 			MessageType:    msgDataType,
 			MessageVersion: msgDataSchemaVersion,
 		}: expectedTopic,

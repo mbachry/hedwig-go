@@ -3,11 +3,13 @@ go:
 - 1.10.x
 - master
 install:
+- go get github.com/kardianos/govendor
 - go get -u github.com/client9/misspell/cmd/misspell
 - go get -u honnef.co/go/tools/cmd/megacheck
 before_script:
+- govendor sync
 - go vet ./...
-- gofmt -d *.go
+- gofmt -d -s .
 - misspell -error -locale US *.go
 - megacheck $EXCLUDE_VENDOR
 script: make test

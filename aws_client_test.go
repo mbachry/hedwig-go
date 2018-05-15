@@ -802,11 +802,11 @@ func (suite *AWSClientTestSuite) TestAWSClient_PublishSNS() {
 	expectedTopic := getSNSTopic(settings, msgTopic)
 
 	attributes := map[string]*sns.MessageAttributeValue{
-		"foo": &sns.MessageAttributeValue{
+		"foo": {
 			DataType:    aws.String("String"),
 			StringValue: aws.String(headers["foo"]),
 		},
-		"RequestID": &sns.MessageAttributeValue{
+		"RequestID": {
 			DataType:    aws.String("String"),
 			StringValue: aws.String(headers["RequestID"]),
 		},
@@ -850,11 +850,11 @@ func (suite *AWSClientTestSuite) TestAWSClient_PublishSNSError() {
 	expectedTopic := getSNSTopic(settings, msgTopic)
 
 	attributes := map[string]*sns.MessageAttributeValue{
-		"foo": &sns.MessageAttributeValue{
+		"foo": {
 			DataType:    aws.String("String"),
 			StringValue: aws.String(headers["foo"]),
 		},
-		"RequestID": &sns.MessageAttributeValue{
+		"RequestID": {
 			DataType:    aws.String("String"),
 			StringValue: aws.String(headers["RequestID"]),
 		},
