@@ -30,6 +30,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
+	"golang.org/x/sync/errgroup"
 )
 
 // FakeHedwigDataField is a fake data field for testing
@@ -512,6 +513,7 @@ func (suite *AWSClientTestSuite) TestAWSClient_HandleLambdaEvent() {
 	settings := createTestSettings()
 	settings.PreProcessHookLambda = fakePreProcessHookLambda.PreProcessHookLambda
 
+	_, childCtx := errgroup.WithContext(ctx)
 	snsRecords := make([]events.SNSEventRecord, 2)
 	expectedMessages := make([]*Message, 2)
 	for i := 0; i < 2; i++ {
@@ -529,7 +531,7 @@ func (suite *AWSClientTestSuite) TestAWSClient_HandleLambdaEvent() {
 		expectedMessages[i] = message
 
 		// Have to use Anything cause comparison fails for function pointers
-		fakeCallback.On("Callback", ctx, mock.Anything).Return(nil)
+		fakeCallback.On("Callback", mock.Anything, mock.Anything).Return(nil)
 
 		msgJSON, err := message.JSONString()
 		suite.Require().NoError(err)
@@ -541,7 +543,7 @@ func (suite *AWSClientTestSuite) TestAWSClient_HandleLambdaEvent() {
 			},
 		}
 		fakePreProcessHookLambda.On("PreProcessHookLambda", &LambdaRequest{
-			Context:     ctx,
+			Context:     childCtx,
 			EventRecord: &snsRecords[i],
 		}).Return(nil)
 	}
@@ -552,11 +554,11 @@ func (suite *AWSClientTestSuite) TestAWSClient_HandleLambdaEvent() {
 	err := awsClient.HandleLambdaEvent(ctx, settings, snsEvent)
 	suite.NoError(err)
 
-	fakeCallback.AssertExpectations(suite.T())
 	fakePreProcessHookLambda.AssertExpectations(suite.T())
 
 	// Validate callback argument
 	suite.Equal(len(fakeCallback.Calls), len(expectedMessages))
+	fakeCallback.AssertExpectations(suite.T())
 	for _, expectedMsg := range expectedMessages {
 		msgMatch := false
 		for i := range fakeCallback.Calls {
@@ -610,8 +612,9 @@ func (suite *AWSClientTestSuite) TestAWSClient_HandleLambdaEventHookError() {
 			Message:   msgJSON,
 		},
 	}
+	_, childCtx := errgroup.WithContext(ctx)
 	fakePreProcessHookLambda.On("PreProcessHookLambda", &LambdaRequest{
-		Context:     ctx,
+		Context:     childCtx,
 		EventRecord: &snsRecord,
 	}).Return(errors.New("fail"))
 
@@ -645,7 +648,10 @@ func (suite *AWSClientTestSuite) TestAWSClient_HandleLambdaEventContextCancel() 
 		suite.Require().NoError(err)
 
 		// Have to use Anything cause comparison fails for function pointers
-		fakeCallback.On("Callback", ctx, mock.Anything).Return(nil)
+		fakeCallback.On("Callback", mock.Anything, mock.Anything).Return(
+			nil).Run(func(args mock.Arguments) {
+			time.Sleep(1 * time.Millisecond)
+		})
 
 		msgJSON, err := message.JSONString()
 		suite.Require().NoError(err)
@@ -663,15 +669,16 @@ func (suite *AWSClientTestSuite) TestAWSClient_HandleLambdaEventContextCancel() 
 
 	ch := make(chan bool)
 	go func() {
-		time.Sleep(1 * time.Millisecond)
 		err := awsClient.HandleLambdaEvent(ctx, settings, snsEvent)
 		suite.Assert().EqualError(err, "context canceled")
 		ch <- true
 		close(ch)
 	}()
+	time.Sleep(2 * time.Millisecond)
 	cancel()
 	// wait for co-routine to finish
 	<-ch
+	fakeCallback.AssertExpectations(suite.T())
 }
 func (suite *AWSClientTestSuite) TestAWSClient_HandleLambdaEventNoHook() {
 	ctx := context.Background()
@@ -689,7 +696,7 @@ func (suite *AWSClientTestSuite) TestAWSClient_HandleLambdaEventNoHook() {
 		suite.Require().NoError(err)
 
 		// Have to use Anything cause comparison fails for function pointers
-		fakeCallback.On("Callback", ctx, mock.Anything).Return(nil)
+		fakeCallback.On("Callback", mock.Anything, mock.Anything).Return(nil)
 
 		msgJSON, err := message.JSONString()
 		suite.Require().NoError(err)
@@ -724,57 +731,75 @@ func (suite *AWSClientTestSuite) TestAWSClient_HandleLambdaEventCallbackError() 
 
 	settings := createTestSettings()
 
-	data := FakeHedwigDataField{
-		VehicleID: "C_1234567890123456",
-	}
+	snsRecords := make([]events.SNSEventRecord, 2)
+	expectedMessages := make([]*Message, 2)
+	for i := 0; i < 2; i++ {
+		data := FakeHedwigDataField{
+			VehicleID: fmt.Sprintf("C_123456789012345%d", i),
+		}
 
-	message, err := NewMessage(settings, "vehicle_created", "1.0", nil, &data)
-	suite.Require().NoError(err)
+		message, err := NewMessage(settings, "vehicle_created", "1.0", nil, &data)
+		suite.Require().NoError(err)
 
-	// Override time so comparison does not fail due to precision
-	message.Metadata.Timestamp = JSONTime(
-		time.Unix(0, int64(1)*int64(time.Hour)))
-	message.validate()
-	message.validateCallback(settings)
+		// Override time so comparison does not fail due to precision
+		message.Metadata.Timestamp = JSONTime(
+			time.Unix(0, int64(1)*int64(time.Hour)))
+		message.validate()
+		message.validateCallback(settings)
+		expectedMessages[i] = message
 
-	// Have to use Anything cause comparison fails for function pointers
-	fakeCallback.On("Callback", ctx, mock.Anything).Return(errors.New("my bad"))
+		// Have to use Anything cause comparison fails for function pointers
+		fakeCallback.On("Callback", mock.Anything, mock.Anything).Return(errors.New("my bad"))
 
-	msgJSON, err := message.JSONString()
-	suite.Require().NoError(err)
+		msgJSON, err := message.JSONString()
+		suite.Require().NoError(err)
 
-	snsEvent := events.SNSEvent{
-		Records: []events.SNSEventRecord{
-			{
-				SNS: events.SNSEntity{
-					MessageID: uuid.Must(uuid.NewV4()).String(),
-					Message:   string(msgJSON),
-				},
+		snsRecords[i] = events.SNSEventRecord{
+			SNS: events.SNSEntity{
+				MessageID: uuid.Must(uuid.NewV4()).String(),
+				Message:   msgJSON,
 			},
-		},
+		}
+	}
+	snsEvent := events.SNSEvent{
+		Records: snsRecords,
 	}
 
-	err = awsClient.HandleLambdaEvent(ctx, settings, snsEvent)
+	err := awsClient.HandleLambdaEvent(ctx, settings, snsEvent)
 	suite.EqualError(err, "my bad")
 
 	fakeCallback.AssertExpectations(suite.T())
 
-	suite.Equal(1, len(hook.Entries))
+	suite.Equal(2, len(hook.Entries))
 	suite.Equal(logrus.ErrorLevel, hook.LastEntry().Level)
 	suite.Equal("failed to process lambda event with error: my bad", hook.LastEntry().Message)
 
-	expectedMsg := message
-	msg := fakeCallback.Calls[0].Arguments.Get(1).(*Message)
+	suite.Require().Equal(len(fakeCallback.Calls), len(expectedMessages))
+	for _, expectedMsg := range expectedMessages {
+		msgMatch := false
+		for i := range fakeCallback.Calls {
+			msg := fakeCallback.Calls[i].Arguments.Get(1).(*Message)
 
-	// Spot check all fields except Callback. Go does not support function pointer comparison
-	suite.Equal(*expectedMsg.Data.(*FakeHedwigDataField), *msg.Data.(*FakeHedwigDataField))
-	suite.Equal(expectedMsg.Metadata, msg.Metadata)
-	suite.Equal(expectedMsg.ID, msg.ID)
-	suite.Equal(expectedMsg.Schema, msg.Schema)
-	suite.Equal(expectedMsg.FormatVersion, msg.FormatVersion)
+			if expectedMsg.ID != msg.ID {
+				continue
+			}
 
-	// Validate callback is set
-	suite.NotNil(msg.callback)
+			// Spot check all fields except Callback. Go does not support function pointer comparison
+			suite.Equal(*expectedMsg.Data.(*FakeHedwigDataField), *msg.Data.(*FakeHedwigDataField))
+			suite.Equal(expectedMsg.Metadata, msg.Metadata)
+			suite.Equal(expectedMsg.ID, msg.ID)
+			suite.Equal(expectedMsg.Schema, msg.Schema)
+			suite.Equal(expectedMsg.FormatVersion, msg.FormatVersion)
+
+			// Validate callback is set
+			suite.NotNil(msg.callback)
+
+			msgMatch = true
+		}
+
+		// Ensure message matched at least one callback
+		suite.True(msgMatch)
+	}
 }
 
 func (suite *AWSClientTestSuite) TestAWSClient_PublishSNS() {

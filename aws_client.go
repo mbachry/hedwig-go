@@ -20,6 +20,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/sqs"
 	"github.com/aws/aws-sdk-go/service/sqs/sqsiface"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/sync/errgroup"
 )
 
 // iAmazonWebServicesClient represents an interface to the AWS client
@@ -27,19 +28,6 @@ type iAmazonWebServicesClient interface {
 	FetchAndProcessMessages(ctx context.Context, settings *Settings, numMessages uint32, visibilityTimeoutS uint32) error
 	HandleLambdaEvent(ctx context.Context, settings *Settings, snsEvent events.SNSEvent) error
 	PublishSNS(ctx context.Context, settings *Settings, messageTopic string, payload string, headers map[string]string) error
-}
-
-// waitGroupError is like sync.WaitGroup but provides one extra field for storing error
-type waitGroupError struct {
-	sync.WaitGroup
-	Error error
-}
-
-// DoneWithError may be used instead .Done() when there's an error
-// This method clobbers the original error so you only see the last set error
-func (w *waitGroupError) DoneWithError(err error) {
-	w.Error = err
-	w.Done()
 }
 
 func getSQSQueueName(settings *Settings) string {
@@ -74,7 +62,7 @@ func (a *awsClient) processSQSMessage(ctx context.Context, settings *Settings,
 		}
 	}
 
-	err := a.messageHandlerSQS(sqsRequest, settings, queueMessage)
+	err := a.messageHandlerSQS(settings, sqsRequest)
 	switch err {
 	case nil:
 		_, err := a.sqs.DeleteMessageWithContext(ctx, &sqs.DeleteMessageInput{
@@ -128,46 +116,46 @@ func (a *awsClient) FetchAndProcessMessages(ctx context.Context,
 	return ctx.Err()
 }
 
-func (a *awsClient) processSNSRecord(ctx context.Context, settings *Settings, record *events.SNSEventRecord, wge *waitGroupError) {
-	lambdaRequest := &LambdaRequest{
-		Context:     ctx,
-		EventRecord: record,
-	}
+func (a *awsClient) processSNSRecord(settings *Settings, request *LambdaRequest) error {
 	if settings.PreProcessHookLambda != nil {
-		if err := settings.PreProcessHookLambda(lambdaRequest); err != nil {
+		if err := settings.PreProcessHookLambda(request); err != nil {
 			logrus.Errorf("failed to execute pre process hook for lambda event: %v", err)
-			wge.DoneWithError(err)
-			return
+			return err
 		}
 	}
 
-	err := a.messageHandlerLambda(lambdaRequest, settings, record)
+	err := a.messageHandlerLambda(settings, request)
 	if err != nil {
 		logrus.Errorf("failed to process lambda event with error: %v", err)
-		wge.DoneWithError(err)
-		return
+		return err
 	}
-	wge.Done()
+	return nil
 }
 
 func (a *awsClient) HandleLambdaEvent(ctx context.Context, settings *Settings, snsEvent events.SNSEvent) error {
-	wge := waitGroupError{}
+	wg, childCtx := errgroup.WithContext(ctx)
 	for i := range snsEvent.Records {
+		request := &LambdaRequest{
+			Context:     childCtx,
+			EventRecord: &snsEvent.Records[i],
+		}
 		select {
 		case <-ctx.Done():
 			// Do nothing
 		default:
-			wge.Add(1)
-			go a.processSNSRecord(ctx, settings, &snsEvent.Records[i], &wge)
+			wg.Go(func() error {
+				return a.processSNSRecord(settings, request)
+			})
+
 		}
 	}
 
-	wge.Wait()
+	err := wg.Wait()
 	if ctx.Err() != nil {
 		// if context was canceled, signal appropriately
 		return ctx.Err()
 	}
-	return wge.Error
+	return err
 }
 
 // PublishSNS handles publishing to AWS SNS
@@ -236,12 +224,12 @@ func (a *awsClient) messageHandler(ctx context.Context, settings *Settings, mess
 	return message.execCallback(ctx, receipt)
 }
 
-func (a *awsClient) messageHandlerSQS(sqsRequest *SQSRequest, settings *Settings, message *sqs.Message) error {
-	return a.messageHandler(sqsRequest.Context, settings, *message.Body, *message.ReceiptHandle)
+func (a *awsClient) messageHandlerSQS(settings *Settings, request *SQSRequest) error {
+	return a.messageHandler(request.Context, settings, *request.QueueMessage.Body, *request.QueueMessage.ReceiptHandle)
 }
 
-func (a *awsClient) messageHandlerLambda(lambdaRequest *LambdaRequest, settings *Settings, record *events.SNSEventRecord) error {
-	return a.messageHandler(lambdaRequest.Context, settings, record.SNS.Message, "")
+func (a *awsClient) messageHandlerLambda(settings *Settings, request *LambdaRequest) error {
+	return a.messageHandler(request.Context, settings, request.EventRecord.SNS.Message, "")
 }
 
 func newAWSClient(sessionCache *AWSSessionsCache, settings *Settings) iAmazonWebServicesClient {
