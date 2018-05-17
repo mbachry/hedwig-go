@@ -9,12 +9,12 @@ package hedwig
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"regexp"
 	"strings"
 
+	"github.com/pkg/errors"
 	"github.com/santhosh-tekuri/jsonschema"
 	"github.com/santhosh-tekuri/jsonschema/formats"
 )
@@ -144,11 +144,14 @@ func (mv *messageValidator) Validate(message *Message) error {
 
 	schemaKey, err := schemaKeyFromSchema(message.Schema)
 	if err != nil {
-		return fmt.Errorf("Invalid schema, no schema key found: %s", message.Schema)
+		return errors.Wrapf(err,"Invalid schema, no schema key found: %s", message.Schema)
 	}
 
 	if schema, ok := mv.compiledSchemaMap[schemaKey]; ok {
-		return schema.Validate(strings.NewReader(msgDataJSONStr))
+		if err := schema.Validate(strings.NewReader(msgDataJSONStr)); err != nil {
+			return errors.Wrapf(err, "message failed json-schema validation")
+		}
+		return nil
 	}
-	return fmt.Errorf("No schema found for %s", schemaKey)
+	return errors.Errorf("No schema found for %s", schemaKey)
 }

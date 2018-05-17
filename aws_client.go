@@ -21,6 +21,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/sqs/sqsiface"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
+	"github.com/pkg/errors"
 )
 
 // iAmazonWebServicesClient represents an interface to the AWS client
@@ -57,7 +58,7 @@ func (a *awsClient) processSQSMessage(ctx context.Context, settings *Settings,
 	}
 	if settings.PreProcessHookSQS != nil {
 		if err := settings.PreProcessHookSQS(sqsRequest); err != nil {
-			logrus.Errorf("Failed to execute pre process hook for message: %v", err)
+			logrus.WithError(err).Errorf("Failed to execute pre process hook for message: %v", err)
 			return
 		}
 	}
@@ -70,12 +71,12 @@ func (a *awsClient) processSQSMessage(ctx context.Context, settings *Settings,
 			ReceiptHandle: queueMessage.ReceiptHandle,
 		})
 		if err != nil {
-			logrus.Errorf("Failed to delete message with error: %v", err)
+			logrus.WithError(err).Errorf("Failed to delete message with error: %v", err)
 		}
 	case ErrRetry:
 		logrus.Debug("Retrying due to exception")
 	default:
-		logrus.Errorf("Retrying due to unknown exception: %v", err)
+		logrus.WithError(err).Errorf("Retrying due to unknown exception: %v", err)
 	}
 }
 
@@ -85,7 +86,7 @@ func (a *awsClient) FetchAndProcessMessages(ctx context.Context,
 	queueName := getSQSQueueName(settings)
 	queueURL, err := a.getSQSQueueURL(ctx, queueName)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to get SQS Queue URL")
 	}
 
 	input := &sqs.ReceiveMessageInput{
@@ -100,7 +101,7 @@ func (a *awsClient) FetchAndProcessMessages(ctx context.Context,
 	wg := sync.WaitGroup{}
 	out, err := a.sqs.ReceiveMessageWithContext(ctx, input)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to receive SQS message")
 	}
 	for i := range out.Messages {
 		select {
@@ -119,14 +120,14 @@ func (a *awsClient) FetchAndProcessMessages(ctx context.Context,
 func (a *awsClient) processSNSRecord(settings *Settings, request *LambdaRequest) error {
 	if settings.PreProcessHookLambda != nil {
 		if err := settings.PreProcessHookLambda(request); err != nil {
-			logrus.Errorf("failed to execute pre process hook for lambda event: %v", err)
-			return err
+			logrus.WithError(err).Errorf("failed to execute pre process hook for lambda event: %v", err)
+			return errors.Wrapf(err, "failed to execute pre process hook")
 		}
 	}
 
 	err := a.messageHandlerLambda(settings, request)
 	if err != nil {
-		logrus.Errorf("failed to process lambda event with error: %v", err)
+		logrus.WithError(err).Errorf("failed to process lambda event with error: %v", err)
 		return err
 	}
 	return nil
@@ -179,7 +180,7 @@ func (a *awsClient) PublishSNS(ctx context.Context, settings *Settings, messageT
 			Message:           &payload,
 			MessageAttributes: attributes,
 		})
-	return err
+	return errors.Wrap(err, "Failed to publish message to SNS")
 }
 
 func (a *awsClient) getSQSQueueURL(ctx context.Context, queueName string) (*string, error) {
@@ -196,7 +197,7 @@ func (a *awsClient) messageHandler(ctx context.Context, settings *Settings, mess
 	var jsonData []byte
 	if settings.PostDeserializeHook != nil {
 		if err := settings.PostDeserializeHook(ctx, &messageBody); err != nil {
-			return err
+			return errors.Wrapf(err, "post deserialize hook failed")
 		}
 	}
 	jsonData = []byte(messageBody)
@@ -204,8 +205,8 @@ func (a *awsClient) messageHandler(ctx context.Context, settings *Settings, mess
 	message := Message{}
 	err := json.Unmarshal(jsonData, &message)
 	if err != nil {
-		logrus.Errorf("invalid message, unable to unmarshal")
-		return err
+		logrus.WithError(err).Errorf("invalid message, unable to unmarshal")
+		return errors.Wrapf(err, "invalid message, unable to unmarshal")
 	}
 
 	// Set validator

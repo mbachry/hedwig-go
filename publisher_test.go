@@ -10,12 +10,12 @@ package hedwig
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"github.com/pkg/errors"
 )
 
 type FakeMessageDefaultHeadersHook struct {
@@ -175,12 +175,12 @@ func TestPublishPreSerializeHookError(t *testing.T) {
 	msg, err := message.JSONString()
 	require.NoError(t, err)
 
-	fakePreSerializeHook.On("PreSerializeHook", ctx, &msg).Return(fmt.Errorf("Fake error!"))
+	fakePreSerializeHook.On("PreSerializeHook", ctx, &msg).Return(errors.Errorf("Fake error!"))
 
 	require.NoError(t, err)
 
 	err = publisher.Publish(ctx, message)
-	assertions.EqualError(err, "Fake error!")
+	assertions.EqualError(errors.Cause(err), "Fake error!")
 
 	awsClient.AssertExpectations(t)
 	fakePreSerializeHook.AssertExpectations(t)

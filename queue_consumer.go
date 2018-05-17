@@ -26,7 +26,7 @@ func (c *queueConsumer) ListenForMessages(ctx context.Context, request *ListenRe
 	for i := uint32(0); request.LoopCount == 0 || i < request.LoopCount; i++ {
 		if err := c.awsClient.FetchAndProcessMessages(ctx,
 			c.settings, request.NumMessages, request.VisibilityTimeoutS); err != nil {
-			logrus.Errorf("Failed to fetch and process message: %+v", err)
+			logrus.WithError(err).Errorf("Failed to fetch and process message: %+v", err)
 			return err
 		}
 	}

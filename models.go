@@ -10,12 +10,12 @@ package hedwig
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"regexp"
 	"time"
 
 	"github.com/Masterminds/semver"
+	"github.com/pkg/errors"
 	"github.com/satori/go.uuid"
 )
 
@@ -61,7 +61,7 @@ func createMetadata(settings *Settings, headers map[string]string) (*metadata, e
 func (m *Message) DataJSONString() (string, error) {
 	o, err := json.Marshal(m.Data)
 	if err != nil {
-		return "", err
+		return "", errors.Wrapf(err, "unable to serialize message data")
 	}
 	return string(o), nil
 }
@@ -130,10 +130,10 @@ func (m *Message) UnmarshalJSON(b []byte) error {
 func (m *Message) setDataSchema() error {
 	groupMatches := schemaRe.FindStringSubmatch(m.Schema)
 	if groupMatches == nil {
-		return fmt.Errorf("Invalid schema: %s", m.Schema)
+		return errors.Errorf("Invalid schema: %s", m.Schema)
 	}
 	if len(groupMatches) != 3 {
-		return fmt.Errorf("Invalid schema groups: %s", m.Schema)
+		return errors.Errorf("Invalid schema groups: %s", m.Schema)
 	}
 	m.dataType = groupMatches[1]
 	// Validate schema version to be in <major>.<minor>

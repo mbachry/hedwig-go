@@ -625,7 +625,7 @@ func (suite *AWSClientTestSuite) TestAWSClient_HandleLambdaEventHookError() {
 	}
 
 	err = awsClient.HandleLambdaEvent(ctx, settings, snsEvent)
-	suite.EqualError(err, "fail")
+	suite.EqualError(errors.Cause(err), "fail")
 
 	fakeCallback.AssertExpectations(suite.T())
 	fakePreProcessHookLambda.AssertExpectations(suite.T())
@@ -894,7 +894,7 @@ func (suite *AWSClientTestSuite) TestAWSClient_PublishSNSError() {
 	fakeSns.On("PublishWithContext", ctx, expectedSnsInput).Return((*sns.PublishOutput)(nil), errors.New("no internet"))
 
 	err = awsClient.PublishSNS(ctx, settings, msgTopic, string(msgJSON), headers)
-	suite.EqualError(err, "no internet")
+	suite.EqualError(errors.Cause(err), "no internet")
 
 	fakeSns.AssertExpectations(suite.T())
 }
@@ -999,12 +999,12 @@ func (suite *AWSClientTestSuite) TestAWSClient_messageHandlerHookError() {
 	msgJSON, err := message.JSONString()
 	suite.Require().NoError(err)
 
-	expectedError := fmt.Errorf("Fake error!")
+	expectedError := errors.Errorf("Fake error!")
 	fakePostDeserializeHook.On("PostDeserializeHook", ctx, &msgJSON).Return(expectedError)
 
 	receipt := uuid.Must(uuid.NewV4()).String()
 	err = awsClient.messageHandler(ctx, settings, msgJSON, receipt)
-	assertions.EqualError(err, "Fake error!")
+	assertions.EqualError(errors.Cause(err), "Fake error!")
 
 	fakeCallback.AssertExpectations(suite.T())
 	fakePostDeserializeHook.AssertExpectations(suite.T())

@@ -9,6 +9,8 @@ package hedwig
 
 import (
 	"context"
+
+	"github.com/pkg/errors"
 )
 
 // IPublisher handles all publish related functions
@@ -43,7 +45,7 @@ func (p *Publisher) Publish(ctx context.Context, message *Message) error {
 	}
 	if p.settings.PreSerializeHook != nil {
 		if err := p.settings.PreSerializeHook(ctx, &messageBodyStr); err != nil {
-			return err
+			return errors.Wrap(err,"Failed to process pre serialize hook")
 		}
 	}
 
