@@ -19,9 +19,9 @@ import (
 	"github.com/aws/aws-sdk-go/service/sns/snsiface"
 	"github.com/aws/aws-sdk-go/service/sqs"
 	"github.com/aws/aws-sdk-go/service/sqs/sqsiface"
+	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
-	"github.com/pkg/errors"
 )
 
 // iAmazonWebServicesClient represents an interface to the AWS client

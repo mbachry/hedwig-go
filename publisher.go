@@ -45,7 +45,7 @@ func (p *Publisher) Publish(ctx context.Context, message *Message) error {
 	}
 	if p.settings.PreSerializeHook != nil {
 		if err := p.settings.PreSerializeHook(ctx, &messageBodyStr); err != nil {
-			return errors.Wrap(err,"Failed to process pre serialize hook")
+			return errors.Wrap(err, "Failed to process pre serialize hook")
 		}
 	}
 

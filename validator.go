@@ -144,7 +144,7 @@ func (mv *messageValidator) Validate(message *Message) error {
 
 	schemaKey, err := schemaKeyFromSchema(message.Schema)
 	if err != nil {
-		return errors.Wrapf(err,"Invalid schema, no schema key found: %s", message.Schema)
+		return errors.Wrapf(err, "Invalid schema, no schema key found: %s", message.Schema)
 	}
 
 	if schema, ok := mv.compiledSchemaMap[schemaKey]; ok {
