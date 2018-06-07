@@ -12,6 +12,7 @@ import (
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-sdk-go/service/sqs"
+	"time"
 )
 
 // CallbackKey is a key identifying a hedwig callback
@@ -81,6 +82,9 @@ type Settings struct {
 	// AWS session tokenthat represents temporary credentials (i.e. for Lambda app)
 	AWSSessionToken string
 
+	// AWS read timeout for publisher
+	AWSReadTimeoutS time.Duration // optional; default: 2 seconds
+
 	// Returns default headers for a message before a message is published. This will apply to ALL messages.
 	// Can be used to inject custom headers (i.e. request id).
 	MessageDefaultHeadersHook MessageDefaultHeadersHook
@@ -111,6 +115,12 @@ type Settings struct {
 	// Message validator using JSON schema for validation. Additional JSON schema formats may be added.
 	// Please see github.com/santhosh-tekuri/jsonschema for more details.
 	Validator IMessageValidator
+}
+
+func (s *Settings) initDefaults() {
+	if s.AWSReadTimeoutS == 0 {
+		s.AWSReadTimeoutS = 2 * time.Second
+	}
 }
 
 // callBackInfo defines callback function and function to produce a new data pointer field for a hedwig message

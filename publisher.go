@@ -59,6 +59,8 @@ func (p *Publisher) Publish(ctx context.Context, message *Message) error {
 
 // NewPublisher creates a new Publisher
 func NewPublisher(sessionCache *AWSSessionsCache, settings *Settings) IPublisher {
+	settings.initDefaults()
+
 	return &Publisher{
 		awsClient: newAWSClient(sessionCache, settings),
 		settings:  settings,

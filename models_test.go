@@ -23,13 +23,15 @@ func createTestSettings() *Settings {
 	if err != nil {
 		panic(err)
 	}
-	return &Settings{
+	s := &Settings{
 		AWSRegion:    "us-east-1",
 		AWSAccountID: "1234567890",
 		Publisher:    "myapp",
 		QueueName:    "DEV-MYAPP",
 		Validator:    v,
 	}
+	s.initDefaults()
+	return s
 }
 
 func TestCreateMetadata(t *testing.T) {

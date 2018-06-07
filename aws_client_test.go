@@ -843,7 +843,8 @@ func (suite *AWSClientTestSuite) TestAWSClient_PublishSNS() {
 		MessageAttributes: attributes,
 	}
 
-	fakeSns.On("PublishWithContext", ctx, expectedSnsInput).Return((*sns.PublishOutput)(nil), nil)
+	fakeSns.On("PublishWithContext", ctx, expectedSnsInput, mock.Anything).
+		Return((*sns.PublishOutput)(nil), nil)
 
 	err = awsClient.PublishSNS(ctx, settings, msgTopic, string(msgJSON), headers)
 	suite.NoError(err)

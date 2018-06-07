@@ -15,6 +15,7 @@ import (
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/sns"
 	"github.com/aws/aws-sdk-go/service/sns/snsiface"
 	"github.com/aws/aws-sdk-go/service/sqs"
@@ -179,7 +180,9 @@ func (a *awsClient) PublishSNS(ctx context.Context, settings *Settings, messageT
 			TopicArn:          &topic,
 			Message:           &payload,
 			MessageAttributes: attributes,
-		})
+		},
+		request.WithResponseReadTimeout(settings.AWSReadTimeoutS),
+	)
 	return errors.Wrap(err, "Failed to publish message to SNS")
 }
 
