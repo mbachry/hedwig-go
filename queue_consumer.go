@@ -10,7 +10,7 @@ package hedwig
 import (
 	"context"
 
-	"github.com/sirupsen/logrus"
+	"time"
 )
 
 type queueConsumer struct {
@@ -24,10 +24,21 @@ func (c *queueConsumer) ListenForMessages(ctx context.Context, request *ListenRe
 	}
 
 	for i := uint32(0); request.LoopCount == 0 || i < request.LoopCount; i++ {
-		if err := c.awsClient.FetchAndProcessMessages(ctx,
-			c.settings, request.NumMessages, request.VisibilityTimeoutS); err != nil {
-			logrus.WithError(err).Errorf("Failed to fetch and process message: %+v", err)
-			return err
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			if deadline, ok := ctx.Deadline(); ok {
+				// is shutting down?
+				if deadline.Sub(time.Now()) < c.settings.ShutdownTimeout {
+					return nil
+				}
+			}
+			if err := c.awsClient.FetchAndProcessMessages(
+				ctx, c.settings, request.NumMessages, request.VisibilityTimeoutS,
+			); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -35,6 +46,7 @@ func (c *queueConsumer) ListenForMessages(ctx context.Context, request *ListenRe
 
 // NewQueueConsumer creates a new consumer object used for a queue
 func NewQueueConsumer(sessionCache *AWSSessionsCache, settings *Settings) IQueueConsumer {
+	settings.initDefaults()
 	return &queueConsumer{
 		consumer: consumer{
 			awsClient: newAWSClient(sessionCache, settings),

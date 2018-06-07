@@ -112,6 +112,9 @@ type Settings struct {
 	// Hedwig queue name. Exclude the `HEDWIG-` prefix
 	QueueName string
 
+	// ShutdownTimeout is the time the app has to shut down before being brutally killed
+	ShutdownTimeout time.Duration // optional; defaults to 10s
+
 	// Message validator using JSON schema for validation. Additional JSON schema formats may be added.
 	// Please see github.com/santhosh-tekuri/jsonschema for more details.
 	Validator IMessageValidator
@@ -120,6 +123,9 @@ type Settings struct {
 func (s *Settings) initDefaults() {
 	if s.AWSReadTimeoutS == 0 {
 		s.AWSReadTimeoutS = 2 * time.Second
+	}
+	if s.ShutdownTimeout == 0 {
+		s.ShutdownTimeout = 10 * time.Second
 	}
 }
 

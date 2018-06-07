@@ -24,6 +24,12 @@ type ListenRequest struct {
 // IQueueConsumer represents a hedwig queue consumer
 type IQueueConsumer interface {
 	// ListenForMessages starts a hedwig listener for the provided message types
+    //
+    // This function never returns by default. Possible shutdown methods:
+    // 1. Cancel the context - returns immediately.
+    // 2. Set a deadline on the context of less than 10 seconds - returns after processing current messages.
+    // 3. Run for limited number of loops by setting LoopCount on the request - returns after running loop a finite
+    // number of times
 	ListenForMessages(ctx context.Context, request *ListenRequest) error
 }
 
