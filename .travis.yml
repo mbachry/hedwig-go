@@ -25,7 +25,7 @@ before_script:
 - go vet $EXCLUDE_VENDOR
 - misspell -error -locale US *.go
 - megacheck $EXCLUDE_VENDOR
-- for file in $EXCLUDE_VENDOR; do diff -u <(echo -n) <(gofmt -d -s $file); done
+- (for file in $EXCLUDE_VENDOR; do diff -u <(echo -n) <(gofmt -d -s $file) || exit 1; done)
 - $(exit $(govendor list -no-status +outside | wc -l))
 
 script: make test
