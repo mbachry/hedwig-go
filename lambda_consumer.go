@@ -9,8 +9,10 @@ package hedwig
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/aws/aws-lambda-go/events"
+	"github.com/aws/aws-lambda-go/lambda"
 )
 
 type lambdaConsumer struct {
@@ -29,5 +31,38 @@ func NewLambdaConsumer(sessionCache *AWSSessionsCache, settings *Settings) ILamb
 			awsClient: newAWSClient(sessionCache, settings),
 			settings:  settings,
 		},
+	}
+}
+
+// LambdaHandler implements Lambda.Handler interface
+type LambdaHandler struct {
+	lambdaConsumer ILambdaConsumer
+}
+
+func (handler *LambdaHandler) Invoke(ctx context.Context, payload []byte) ([]byte, error) {
+	snsEvent := &events.SNSEvent{}
+	err := json.Unmarshal(payload, snsEvent)
+	if err != nil {
+		return nil, err
+	}
+
+	err = handler.lambdaConsumer.HandleLambdaEvent(ctx, *snsEvent)
+	if err != nil {
+		return nil, err
+	}
+	return []byte(""), nil
+}
+
+// NewLambdaHandler returns a new lambda Handler that can be started like so:
+//
+//   func main() {
+//       lambda.StartHandler(NewLambdaHandler(consumer))
+//   }
+//
+// If you want to add additional error handle (e.g. panic catch etc), you can always use your own Handler,
+// and call LambdaHandler.Invoke
+func NewLambdaHandler(consumer ILambdaConsumer) lambda.Handler {
+	return &LambdaHandler{
+		lambdaConsumer: consumer,
 	}
 }

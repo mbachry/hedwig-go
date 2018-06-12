@@ -9,10 +9,28 @@
 			"revisionTime": "2018-04-10T20:51:47Z"
 		},
 		{
-			"checksumSHA1": "H+nuubKZtdEPryI/ZiaF3W+hnus=",
+			"checksumSHA1": "iKbSVW5euIPDCPDFWbsokNU1sfo=",
 			"path": "github.com/aws/aws-lambda-go/events",
-			"revision": "16345c95f707776c585583dfe7be8dda7dd9aeb7",
-			"revisionTime": "2018-04-03T02:18:18Z"
+			"revision": "4d30d0ff60440c2d0480a15747c96ee71c3c53d4",
+			"revisionTime": "2018-04-20T04:06:44Z"
+		},
+		{
+			"checksumSHA1": "Atnv24CtEnB8ZLGDqFevLMfzLtQ=",
+			"path": "github.com/aws/aws-lambda-go/lambda",
+			"revision": "4d30d0ff60440c2d0480a15747c96ee71c3c53d4",
+			"revisionTime": "2018-04-20T04:06:44Z"
+		},
+		{
+			"checksumSHA1": "d4ehJWLS4YsqFG825pgwdvKDB6A=",
+			"path": "github.com/aws/aws-lambda-go/lambda/messages",
+			"revision": "4d30d0ff60440c2d0480a15747c96ee71c3c53d4",
+			"revisionTime": "2018-04-20T04:06:44Z"
+		},
+		{
+			"checksumSHA1": "f9MhOwQHveaPVWO6trwfqHa+W0M=",
+			"path": "github.com/aws/aws-lambda-go/lambdacontext",
+			"revision": "4d30d0ff60440c2d0480a15747c96ee71c3c53d4",
+			"revisionTime": "2018-04-20T04:06:44Z"
 		},
 		{
 			"checksumSHA1": "2fRYV/6rmBLWiVrmVF/bPFIqMEA=",
