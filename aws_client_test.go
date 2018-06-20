@@ -24,7 +24,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/sqs"
 	"github.com/aws/aws-sdk-go/service/sqs/sqsiface"
 	"github.com/pkg/errors"
-	"github.com/satori/go.uuid"
+	uuid "github.com/satori/go.uuid"
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/stretchr/testify/assert"
@@ -137,17 +137,22 @@ func (fpdh *FakePostDeserializeHook) PostDeserializeHook(ctx context.Context, me
 type AWSClientTestSuite struct {
 	suite.Suite
 	fakeCallback *FakeCallback
+	settings     *Settings
 }
 
 func (suite *AWSClientTestSuite) SetupTest() {
-	msgType := "vehicle_created"
-	msgVersion := "1.0"
 	suite.fakeCallback = &FakeCallback{}
-	RegisterCallback(msgType, msgVersion, suite.fakeCallback.Callback, func() interface{} { return new(FakeHedwigDataField) })
+	suite.settings = createTestSettings()
+	cbk := CallbackKey{
+		MessageType:    "vehicle_created",
+		MessageVersion: "1.0",
+	}
+	suite.settings.CallbackRegistry.RegisterCallback(
+		cbk, suite.fakeCallback.Callback, func() interface{} { return new(FakeHedwigDataField) })
+
 }
 
 func (suite *AWSClientTestSuite) TearDownTest() {
-	callbackRegistry = make(map[CallbackKey]*callBackInfo)
 }
 
 func (suite *AWSClientTestSuite) TestGetSqsQueueName() {
@@ -186,8 +191,7 @@ func (suite *AWSClientTestSuite) TestAWSClient_FetchAndProcessMessages() {
 		WaitTimeSeconds:     aws.Int64(sqsWaitTimeoutSeconds),
 	}
 
-	settings := createTestSettings()
-	settings.PreProcessHookSQS = fakePreProcessHookSQS.PreProcessHookSQS
+	suite.settings.PreProcessHookSQS = fakePreProcessHookSQS.PreProcessHookSQS
 
 	queueInput := &sqs.GetQueueUrlInput{
 		QueueName: &queueName,
@@ -203,14 +207,14 @@ func (suite *AWSClientTestSuite) TestAWSClient_FetchAndProcessMessages() {
 		data := FakeHedwigDataField{
 			VehicleID: fmt.Sprintf("C_123456789012345%d", i),
 		}
-		message, err := NewMessage(settings, "vehicle_created", "1.0", nil, &data)
+		message, err := NewMessage(suite.settings, "vehicle_created", "1.0", nil, &data)
 		suite.Require().NoError(err)
 
 		// Override time so comparison does not fail due to precision
 		message.Metadata.Timestamp = JSONTime(
 			time.Unix(0, int64(i+1)*int64(time.Hour)))
 		message.validate()
-		message.validateCallback(settings)
+		message.validateCallback(suite.settings)
 
 		// Have to use Anything cause comparison fails for function pointers
 		fakeCallback.On("Callback", ctx, mock.Anything).Return(nil)
@@ -245,7 +249,7 @@ func (suite *AWSClientTestSuite) TestAWSClient_FetchAndProcessMessages() {
 		sqs: fakeSqs,
 	}
 	err := awsClient.FetchAndProcessMessages(
-		ctx, settings, 10, 10,
+		ctx, suite.settings, 10, 10,
 	)
 	suite.NoError(err)
 	fakeCallback.AssertExpectations(suite.T())
@@ -296,8 +300,7 @@ func (suite *AWSClientTestSuite) TestAWSClient_FetchAndProcessMessagesHookError(
 		WaitTimeSeconds:     aws.Int64(sqsWaitTimeoutSeconds),
 	}
 
-	settings := createTestSettings()
-	settings.PreProcessHookSQS = fakePreProcessHookSQS.PreProcessHookSQS
+	suite.settings.PreProcessHookSQS = fakePreProcessHookSQS.PreProcessHookSQS
 
 	queueInput := &sqs.GetQueueUrlInput{
 		QueueName: &queueName,
@@ -312,7 +315,7 @@ func (suite *AWSClientTestSuite) TestAWSClient_FetchAndProcessMessagesHookError(
 		data := FakeHedwigDataField{
 			VehicleID: fmt.Sprintf("C_123456789012345%d", i),
 		}
-		message, err := NewMessage(settings, "vehicle_created", "1.0", nil, &data)
+		message, err := NewMessage(suite.settings, "vehicle_created", "1.0", nil, &data)
 		suite.Require().NoError(err)
 
 		msgJSON, err := message.JSONString()
@@ -337,7 +340,7 @@ func (suite *AWSClientTestSuite) TestAWSClient_FetchAndProcessMessagesHookError(
 		sqs: fakeSqs,
 	}
 	err := awsClient.FetchAndProcessMessages(
-		ctx, settings, 10, 10,
+		ctx, suite.settings, 10, 10,
 	)
 	suite.NoError(err)
 	fakeCallback.AssertExpectations(suite.T())
@@ -358,8 +361,6 @@ func (suite *AWSClientTestSuite) TestAWSClient_FetchAndProcessMessagesNoHook() {
 		WaitTimeSeconds:     aws.Int64(sqsWaitTimeoutSeconds),
 	}
 
-	settings := createTestSettings()
-
 	queueInput := &sqs.GetQueueUrlInput{
 		QueueName: &queueName,
 	}
@@ -374,7 +375,7 @@ func (suite *AWSClientTestSuite) TestAWSClient_FetchAndProcessMessagesNoHook() {
 		data := FakeHedwigDataField{
 			VehicleID: fmt.Sprintf("C_123456789012345%d", i),
 		}
-		message, err := NewMessage(settings, "vehicle_created", "1.0", nil, &data)
+		message, err := NewMessage(suite.settings, "vehicle_created", "1.0", nil, &data)
 		suite.Require().NoError(err)
 
 		// Have to use Anything cause comparison fails for function pointers
@@ -406,7 +407,7 @@ func (suite *AWSClientTestSuite) TestAWSClient_FetchAndProcessMessagesNoHook() {
 		sqs: fakeSqs,
 	}
 	err := awsClient.FetchAndProcessMessages(
-		ctx, settings, 10, 10,
+		ctx, suite.settings, 10, 10,
 	)
 	suite.NoError(err)
 
@@ -424,8 +425,6 @@ func (suite *AWSClientTestSuite) TestAWSClient_FetchAndProcessMessagesNoDeleteOn
 	fakeSqs := &FakeSQS{}
 	queueName := "HEDWIG-DEV-MYAPP"
 	queueURL := "https://sqs.us-east-1.amazonaws.com/686176732873/" + queueName
-
-	settings := createTestSettings()
 
 	queueInput := &sqs.GetQueueUrlInput{
 		QueueName: &queueName,
@@ -445,14 +444,14 @@ func (suite *AWSClientTestSuite) TestAWSClient_FetchAndProcessMessagesNoDeleteOn
 	data := FakeHedwigDataField{
 		VehicleID: "C_1234567890123456",
 	}
-	message, err := NewMessage(settings, "vehicle_created", "1.0", nil, &data)
+	message, err := NewMessage(suite.settings, "vehicle_created", "1.0", nil, &data)
 	suite.Require().NoError(err)
 
 	// Override time so comparison does not fail due to precision
 	message.Metadata.Timestamp = JSONTime(
 		time.Unix(0, int64(1)*int64(time.Hour)))
 	message.validate()
-	message.validateCallback(settings)
+	message.validateCallback(suite.settings)
 
 	// Have to use Anything cause comparison fails for function pointers
 	fakeCallback.On("Callback", ctx, mock.Anything).Return(errors.New("my bad"))
@@ -474,7 +473,7 @@ func (suite *AWSClientTestSuite) TestAWSClient_FetchAndProcessMessagesNoDeleteOn
 	awsClient := &awsClient{
 		sqs: fakeSqs,
 	}
-	err = awsClient.FetchAndProcessMessages(ctx, settings, 10, 10)
+	err = awsClient.FetchAndProcessMessages(ctx, suite.settings, 10, 10)
 	// no error is returned here, but we log the error
 	suite.NoError(err)
 
@@ -510,8 +509,7 @@ func (suite *AWSClientTestSuite) TestAWSClient_HandleLambdaEvent() {
 	fakeCallback := suite.fakeCallback
 	fakePreProcessHookLambda := &FakePreProcessHookLambda{}
 
-	settings := createTestSettings()
-	settings.PreProcessHookLambda = fakePreProcessHookLambda.PreProcessHookLambda
+	suite.settings.PreProcessHookLambda = fakePreProcessHookLambda.PreProcessHookLambda
 
 	_, childCtx := errgroup.WithContext(ctx)
 	snsRecords := make([]events.SNSEventRecord, 2)
@@ -520,14 +518,14 @@ func (suite *AWSClientTestSuite) TestAWSClient_HandleLambdaEvent() {
 		data := FakeHedwigDataField{
 			VehicleID: fmt.Sprintf("C_123456789012345%d", i),
 		}
-		message, err := NewMessage(settings, "vehicle_created", "1.0", nil, &data)
+		message, err := NewMessage(suite.settings, "vehicle_created", "1.0", nil, &data)
 		suite.Require().NoError(err)
 
 		// Override time so comparison does not fail due to precision
 		message.Metadata.Timestamp = JSONTime(
 			time.Unix(0, int64(i+1)*int64(time.Hour)))
 		message.validate()
-		message.validateCallback(settings)
+		message.validateCallback(suite.settings)
 		expectedMessages[i] = message
 
 		// Have to use Anything cause comparison fails for function pointers
@@ -551,7 +549,7 @@ func (suite *AWSClientTestSuite) TestAWSClient_HandleLambdaEvent() {
 		Records: snsRecords,
 	}
 
-	err := awsClient.HandleLambdaEvent(ctx, settings, snsEvent)
+	err := awsClient.HandleLambdaEvent(ctx, suite.settings, snsEvent)
 	suite.NoError(err)
 
 	fakePreProcessHookLambda.AssertExpectations(suite.T())
@@ -594,13 +592,12 @@ func (suite *AWSClientTestSuite) TestAWSClient_HandleLambdaEventHookError() {
 	fakeCallback := suite.fakeCallback
 	fakePreProcessHookLambda := &FakePreProcessHookLambda{}
 
-	settings := createTestSettings()
-	settings.PreProcessHookLambda = fakePreProcessHookLambda.PreProcessHookLambda
+	suite.settings.PreProcessHookLambda = fakePreProcessHookLambda.PreProcessHookLambda
 
 	data := FakeHedwigDataField{
 		VehicleID: "C_1234567890123450",
 	}
-	message, err := NewMessage(settings, "vehicle_created", "1.0", nil, &data)
+	message, err := NewMessage(suite.settings, "vehicle_created", "1.0", nil, &data)
 	suite.Require().NoError(err)
 
 	msgJSON, err := message.JSONString()
@@ -624,7 +621,7 @@ func (suite *AWSClientTestSuite) TestAWSClient_HandleLambdaEventHookError() {
 		},
 	}
 
-	err = awsClient.HandleLambdaEvent(ctx, settings, snsEvent)
+	err = awsClient.HandleLambdaEvent(ctx, suite.settings, snsEvent)
 	suite.EqualError(errors.Cause(err), "fail")
 
 	fakeCallback.AssertExpectations(suite.T())
@@ -637,14 +634,12 @@ func (suite *AWSClientTestSuite) TestAWSClient_HandleLambdaEventContextCancel() 
 
 	fakeCallback := suite.fakeCallback
 
-	settings := createTestSettings()
-
 	snsRecords := make([]events.SNSEventRecord, 2)
 	for i := 0; i < 2; i++ {
 		data := FakeHedwigDataField{
 			VehicleID: fmt.Sprintf("C_123456789012345%d", i),
 		}
-		message, err := NewMessage(settings, "vehicle_created", "1.0", nil, &data)
+		message, err := NewMessage(suite.settings, "vehicle_created", "1.0", nil, &data)
 		suite.Require().NoError(err)
 
 		// Have to use Anything cause comparison fails for function pointers
@@ -669,7 +664,7 @@ func (suite *AWSClientTestSuite) TestAWSClient_HandleLambdaEventContextCancel() 
 
 	ch := make(chan bool)
 	go func() {
-		err := awsClient.HandleLambdaEvent(ctx, settings, snsEvent)
+		err := awsClient.HandleLambdaEvent(ctx, suite.settings, snsEvent)
 		suite.Assert().EqualError(err, "context canceled")
 		ch <- true
 		close(ch)
@@ -685,14 +680,12 @@ func (suite *AWSClientTestSuite) TestAWSClient_HandleLambdaEventNoHook() {
 	awsClient := &awsClient{}
 	fakeCallback := suite.fakeCallback
 
-	settings := createTestSettings()
-
 	snsRecords := make([]events.SNSEventRecord, 2)
 	for i := 0; i < 2; i++ {
 		data := FakeHedwigDataField{
 			VehicleID: fmt.Sprintf("C_123456789012345%d", i),
 		}
-		message, err := NewMessage(settings, "vehicle_created", "1.0", nil, &data)
+		message, err := NewMessage(suite.settings, "vehicle_created", "1.0", nil, &data)
 		suite.Require().NoError(err)
 
 		// Have to use Anything cause comparison fails for function pointers
@@ -712,7 +705,7 @@ func (suite *AWSClientTestSuite) TestAWSClient_HandleLambdaEventNoHook() {
 		Records: snsRecords,
 	}
 
-	err := awsClient.HandleLambdaEvent(ctx, settings, snsEvent)
+	err := awsClient.HandleLambdaEvent(ctx, suite.settings, snsEvent)
 	suite.NoError(err)
 
 	fakeCallback.AssertExpectations(suite.T())
@@ -729,8 +722,6 @@ func (suite *AWSClientTestSuite) TestAWSClient_HandleLambdaEventCallbackError() 
 
 	fakeCallback := suite.fakeCallback
 
-	settings := createTestSettings()
-
 	snsRecords := make([]events.SNSEventRecord, 2)
 	expectedMessages := make([]*Message, 2)
 	for i := 0; i < 2; i++ {
@@ -738,14 +729,14 @@ func (suite *AWSClientTestSuite) TestAWSClient_HandleLambdaEventCallbackError() 
 			VehicleID: fmt.Sprintf("C_123456789012345%d", i),
 		}
 
-		message, err := NewMessage(settings, "vehicle_created", "1.0", nil, &data)
+		message, err := NewMessage(suite.settings, "vehicle_created", "1.0", nil, &data)
 		suite.Require().NoError(err)
 
 		// Override time so comparison does not fail due to precision
 		message.Metadata.Timestamp = JSONTime(
 			time.Unix(0, int64(1)*int64(time.Hour)))
 		message.validate()
-		message.validateCallback(settings)
+		message.validateCallback(suite.settings)
 		expectedMessages[i] = message
 
 		// Have to use Anything cause comparison fails for function pointers
@@ -765,7 +756,7 @@ func (suite *AWSClientTestSuite) TestAWSClient_HandleLambdaEventCallbackError() 
 		Records: snsRecords,
 	}
 
-	err := awsClient.HandleLambdaEvent(ctx, settings, snsEvent)
+	err := awsClient.HandleLambdaEvent(ctx, suite.settings, snsEvent)
 	suite.EqualError(err, "my bad")
 
 	fakeCallback.AssertExpectations(suite.T())
@@ -809,8 +800,6 @@ func (suite *AWSClientTestSuite) TestAWSClient_PublishSNS() {
 		sns: fakeSns,
 	}
 
-	settings := createTestSettings()
-
 	data := FakeHedwigDataField{
 		VehicleID: "C_1234567890123456",
 	}
@@ -818,13 +807,13 @@ func (suite *AWSClientTestSuite) TestAWSClient_PublishSNS() {
 		"RequestID": "abcdefgh",
 		"foo":       "bar",
 	}
-	message, err := NewMessage(settings, "vehicle_created", "1.0", headers, &data)
+	message, err := NewMessage(suite.settings, "vehicle_created", "1.0", headers, &data)
 	suite.Require().NoError(err)
 	msgJSON, err := message.JSONString()
 	suite.Require().NoError(err)
 
 	msgTopic := "dev-myapp"
-	expectedTopic := getSNSTopic(settings, msgTopic)
+	expectedTopic := getSNSTopic(suite.settings, msgTopic)
 
 	attributes := map[string]*sns.MessageAttributeValue{
 		"foo": {
@@ -846,7 +835,7 @@ func (suite *AWSClientTestSuite) TestAWSClient_PublishSNS() {
 	fakeSns.On("PublishWithContext", ctx, expectedSnsInput, mock.Anything).
 		Return((*sns.PublishOutput)(nil), nil)
 
-	err = awsClient.PublishSNS(ctx, settings, msgTopic, string(msgJSON), headers)
+	err = awsClient.PublishSNS(ctx, suite.settings, msgTopic, string(msgJSON), headers)
 	suite.NoError(err)
 
 	fakeSns.AssertExpectations(suite.T())
@@ -859,7 +848,6 @@ func (suite *AWSClientTestSuite) TestAWSClient_PublishSNSError() {
 		sns: fakeSns,
 	}
 
-	settings := createTestSettings()
 	data := FakeHedwigDataField{
 		VehicleID: "C_1234567890123456",
 	}
@@ -867,13 +855,13 @@ func (suite *AWSClientTestSuite) TestAWSClient_PublishSNSError() {
 		"RequestID": "abcdefgh",
 		"foo":       "bar",
 	}
-	message, err := NewMessage(settings, "vehicle_created", "1.0", nil, &data)
+	message, err := NewMessage(suite.settings, "vehicle_created", "1.0", nil, &data)
 	suite.Require().NoError(err)
 	msgJSON, err := message.JSONString()
 	suite.Require().NoError(err)
 
 	msgTopic := "dev-myapp"
-	expectedTopic := getSNSTopic(settings, msgTopic)
+	expectedTopic := getSNSTopic(suite.settings, msgTopic)
 
 	attributes := map[string]*sns.MessageAttributeValue{
 		"foo": {
@@ -894,7 +882,7 @@ func (suite *AWSClientTestSuite) TestAWSClient_PublishSNSError() {
 
 	fakeSns.On("PublishWithContext", ctx, expectedSnsInput).Return((*sns.PublishOutput)(nil), errors.New("no internet"))
 
-	err = awsClient.PublishSNS(ctx, settings, msgTopic, string(msgJSON), headers)
+	err = awsClient.PublishSNS(ctx, suite.settings, msgTopic, string(msgJSON), headers)
 	suite.EqualError(errors.Cause(err), "no internet")
 
 	fakeSns.AssertExpectations(suite.T())
@@ -902,8 +890,7 @@ func (suite *AWSClientTestSuite) TestAWSClient_PublishSNSError() {
 
 func (suite *AWSClientTestSuite) TestAWSClient_getSQSQueueURL() {
 	ctx := context.Background()
-	settings := createTestSettings()
-	queueName := getSQSQueueName(settings)
+	queueName := getSQSQueueName(suite.settings)
 	expectedQueueURL := "https://sqs.us-east-1.amazonaws.com/686176732873/" + queueName
 
 	fakeSqs := &FakeSQS{}
@@ -938,14 +925,13 @@ func (suite *AWSClientTestSuite) TestAWSClient_messageHandler() {
 
 	fakeCallback := suite.fakeCallback
 	fakePostDeserializeHook := &FakePostDeserializeHook{}
-	settings := createTestSettings()
-	settings.PostDeserializeHook = fakePostDeserializeHook.PostDeserializeHook
+	suite.settings.PostDeserializeHook = fakePostDeserializeHook.PostDeserializeHook
 	awsClient := awsClient{}
 
 	data := FakeHedwigDataField{
 		VehicleID: "C_1234567890123456",
 	}
-	message, err := NewMessage(settings, "vehicle_created", "1.0", nil, &data)
+	message, err := NewMessage(suite.settings, "vehicle_created", "1.0", nil, &data)
 	message.ID = ""
 	suite.Require().NoError(err)
 	// Override time so comparison does not fail due to precision
@@ -963,7 +949,7 @@ func (suite *AWSClientTestSuite) TestAWSClient_messageHandler() {
 	suite.Require().NoError(err)
 	fakePostDeserializeHook.On("PostDeserializeHook", ctx, &msgJSON).Return(nil)
 
-	err = awsClient.messageHandler(ctx, settings, msgJSON, receipt)
+	err = awsClient.messageHandler(ctx, suite.settings, msgJSON, receipt)
 	assertions.Nil(err)
 
 	fakeCallback.AssertExpectations(suite.T())
@@ -987,14 +973,13 @@ func (suite *AWSClientTestSuite) TestAWSClient_messageHandlerHookError() {
 
 	fakeCallback := suite.fakeCallback
 	fakePostDeserializeHook := &FakePostDeserializeHook{}
-	settings := createTestSettings()
-	settings.PostDeserializeHook = fakePostDeserializeHook.PostDeserializeHook
+	suite.settings.PostDeserializeHook = fakePostDeserializeHook.PostDeserializeHook
 	awsClient := awsClient{}
 
 	data := FakeHedwigDataField{
 		VehicleID: "C_1234567890123456",
 	}
-	message, err := NewMessage(settings, "vehicle_created", "1.0", nil, &data)
+	message, err := NewMessage(suite.settings, "vehicle_created", "1.0", nil, &data)
 	suite.Require().NoError(err)
 	message.ID = ""
 	msgJSON, err := message.JSONString()
@@ -1004,7 +989,7 @@ func (suite *AWSClientTestSuite) TestAWSClient_messageHandlerHookError() {
 	fakePostDeserializeHook.On("PostDeserializeHook", ctx, &msgJSON).Return(expectedError)
 
 	receipt := uuid.Must(uuid.NewV4()).String()
-	err = awsClient.messageHandler(ctx, settings, msgJSON, receipt)
+	err = awsClient.messageHandler(ctx, suite.settings, msgJSON, receipt)
 	assertions.EqualError(errors.Cause(err), "Fake error!")
 
 	fakeCallback.AssertExpectations(suite.T())
@@ -1016,13 +1001,12 @@ func (suite *AWSClientTestSuite) TestAWSClient_messageHandlerNoHook() {
 	assertions := assert.New(suite.T())
 
 	fakeCallback := suite.fakeCallback
-	settings := createTestSettings()
 	awsClient := awsClient{}
 
 	data := FakeHedwigDataField{
 		VehicleID: "C_1234567890123456",
 	}
-	message, err := NewMessage(settings, "vehicle_created", "1.0", nil, &data)
+	message, err := NewMessage(suite.settings, "vehicle_created", "1.0", nil, &data)
 	message.ID = ""
 	suite.Require().NoError(err)
 	// Override time so comparison does not fail due to precision
@@ -1035,8 +1019,36 @@ func (suite *AWSClientTestSuite) TestAWSClient_messageHandlerNoHook() {
 
 	fakeCallback.On("Callback", ctx, mock.Anything).Return(nil)
 
-	err = awsClient.messageHandler(ctx, settings, msgJSON, receipt)
+	err = awsClient.messageHandler(ctx, suite.settings, msgJSON, receipt)
 	assertions.Nil(err)
+
+	fakeCallback.AssertExpectations(suite.T())
+}
+
+func (suite *AWSClientTestSuite) TestAWSClient_messageHandlerNoCallbackRegistry() {
+	ctx := context.Background()
+	assertions := assert.New(suite.T())
+
+	fakeCallback := suite.fakeCallback
+	awsClient := awsClient{}
+
+	data := FakeHedwigDataField{
+		VehicleID: "C_1234567890123456",
+	}
+	message, err := NewMessage(suite.settings, "vehicle_created", "1.0", nil, &data)
+	message.ID = ""
+	suite.Require().NoError(err)
+	msgJSON, err := message.JSONString()
+	suite.Require().NoError(err)
+
+	// Set to nil here so message can be created with no error
+	suite.settings.CallbackRegistry = nil
+
+	receipt := uuid.Must(uuid.NewV4()).String()
+	message.Metadata.Receipt = receipt
+
+	err = awsClient.messageHandler(ctx, suite.settings, msgJSON, receipt)
+	assertions.Contains(err.Error(), "callbackRegistry is required")
 
 	fakeCallback.AssertExpectations(suite.T())
 }
@@ -1044,13 +1056,12 @@ func (suite *AWSClientTestSuite) TestAWSClient_messageHandlerNoHook() {
 func (suite *AWSClientTestSuite) TestAWSClient_messageHandlerFailsOnValidationFailure() {
 	ctx := context.Background()
 	fakeCallback := suite.fakeCallback
-	settings := createTestSettings()
 	awsClient := awsClient{}
 
 	data := FakeHedwigDataField{
 		VehicleID: "P_1234567890123456",
 	}
-	message, err := NewMessage(settings, "vehicle_created", "1.0", nil, &data)
+	message, err := NewMessage(suite.settings, "vehicle_created", "1.0", nil, &data)
 	message.ID = ""
 	suite.Require().NoError(err)
 	msgJSON, err := message.JSONString()
@@ -1058,7 +1069,7 @@ func (suite *AWSClientTestSuite) TestAWSClient_messageHandlerFailsOnValidationFa
 
 	receipt := uuid.Must(uuid.NewV4()).String()
 
-	err = awsClient.messageHandler(ctx, settings, msgJSON, receipt)
+	err = awsClient.messageHandler(ctx, suite.settings, msgJSON, receipt)
 	suite.Contains(err.Error(), "validate")
 
 	suite.True(fakeCallback.AssertNotCalled(suite.T(), "Callback"))
@@ -1069,19 +1080,18 @@ func (suite *AWSClientTestSuite) TestAWSClient_messageHandlerFailsOnCallbackFail
 	awsClient := awsClient{}
 
 	fakeCallback := suite.fakeCallback
-	settings := createTestSettings()
 
 	data := FakeHedwigDataField{
 		VehicleID: "C_1234567890123456",
 	}
-	message, err := NewMessage(settings, "vehicle_created", "1.0", nil, &data)
+	message, err := NewMessage(suite.settings, "vehicle_created", "1.0", nil, &data)
 	suite.Require().NoError(err)
 
 	// Override time so comparison does not fail due to precision
 	message.Metadata.Timestamp = JSONTime(
 		time.Unix(0, int64(1)*int64(time.Hour)))
 	message.validate()
-	message.validateCallback(settings)
+	message.validateCallback(suite.settings)
 
 	fakeCallback.On("Callback", ctx, mock.Anything).Return(errors.New("my bad"))
 
@@ -1091,7 +1101,7 @@ func (suite *AWSClientTestSuite) TestAWSClient_messageHandlerFailsOnCallbackFail
 	receipt := uuid.Must(uuid.NewV4()).String()
 	message.Metadata.Receipt = receipt
 
-	err = awsClient.messageHandler(ctx, settings, msgJSON, receipt)
+	err = awsClient.messageHandler(ctx, suite.settings, msgJSON, receipt)
 	suite.EqualError(err, "my bad")
 
 	fakeCallback.AssertExpectations(suite.T())
@@ -1118,17 +1128,14 @@ func (suite *AWSClientTestSuite) TestAWSClient_messageHandlerFailsOnBadJSON() {
 	awsClient := awsClient{}
 	receipt := uuid.Must(uuid.NewV4()).String()
 	messageJSON := "bad json-"
-	settings := createTestSettings()
-	err := awsClient.messageHandler(ctx, settings, string(messageJSON), receipt)
+	err := awsClient.messageHandler(ctx, suite.settings, string(messageJSON), receipt)
 	suite.NotNil(err)
 }
 
 func (suite *AWSClientTestSuite) TestNewAWSClient() {
-	settings := createTestSettings()
-
 	sessionCache := &AWSSessionsCache{}
 
-	iaws := newAWSClient(sessionCache, settings)
+	iaws := newAWSClient(sessionCache, suite.settings)
 	suite.NotNil(iaws)
 }
 

@@ -9,19 +9,11 @@ package hedwig
 
 import (
 	"context"
+	"time"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-sdk-go/service/sqs"
-	"time"
 )
-
-// CallbackKey is a key identifying a hedwig callback
-type CallbackKey struct {
-	// Message type
-	MessageType string
-	// Message major version
-	MessageVersion string
-}
 
 // MessageRouteKey is a key identifying a message route
 type MessageRouteKey struct {
@@ -66,9 +58,6 @@ type PreSerializeHook func(ctx context.Context, messageData *string) error
 // before a Message is created and validated. This hook may be used to modify the format over the wire.
 type PostDeserializeHook func(ctx context.Context, messageData *string) error
 
-// NewData finds a function that returns a pointer to struct type that a hedwig message data should conform to
-type NewData func() interface{}
-
 // Settings for Hedwig
 type Settings struct {
 	// AWS Region
@@ -84,6 +73,9 @@ type Settings struct {
 
 	// AWS read timeout for publisher
 	AWSReadTimeoutS time.Duration // optional; default: 2 seconds
+
+	// CallbackRegistry contains callbacks and message data factories by message type and message version
+	CallbackRegistry *CallbackRegistry
 
 	// Returns default headers for a message before a message is published. This will apply to ALL messages.
 	// Can be used to inject custom headers (i.e. request id).
@@ -127,28 +119,4 @@ func (s *Settings) initDefaults() {
 	if s.ShutdownTimeout == 0 {
 		s.ShutdownTimeout = 10 * time.Second
 	}
-}
-
-// callBackInfo defines callback function and function to produce a new data pointer field for a hedwig message
-type callBackInfo struct {
-	CallbackFunction CallbackFunction
-	NewData          NewData
-}
-
-// callbackRegistry maps hedwig messages to callBackInfo
-var callbackRegistry = make(map[CallbackKey]*callBackInfo)
-
-// RegisterCallback registers the given callback function to the given message type and message major version.
-// Required for consumers. An error will be returned if an incoming message is missing a callback.
-func RegisterCallback(msgType string, msgVersion string, cbf CallbackFunction, newData NewData) {
-	cbk := CallbackKey{
-
-		MessageType:    msgType,
-		MessageVersion: msgVersion,
-	}
-	cbi := callBackInfo{
-		CallbackFunction: cbf,
-		NewData:          newData,
-	}
-	callbackRegistry[cbk] = &cbi
 }

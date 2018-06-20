@@ -24,11 +24,12 @@ func createTestSettings() *Settings {
 		panic(err)
 	}
 	s := &Settings{
-		AWSRegion:    "us-east-1",
-		AWSAccountID: "1234567890",
-		Publisher:    "myapp",
-		QueueName:    "DEV-MYAPP",
-		Validator:    v,
+		AWSRegion:        "us-east-1",
+		AWSAccountID:     "1234567890",
+		CallbackRegistry: NewCallbackRegistry(),
+		Publisher:        "myapp",
+		QueueName:        "DEV-MYAPP",
+		Validator:        v,
 	}
 	s.initDefaults()
 	return s
@@ -79,6 +80,7 @@ func TestNewMessageWithIDSuccess(t *testing.T) {
 	assertions.Equal(expectedSchema, m.Schema)
 	assertions.Equal(msgDataType, m.dataType)
 	assertions.Equal(msgDataSchemaVersion, m.dataSchemaVersion)
+	assertions.Equal(settings.CallbackRegistry, m.callbackRegistry)
 	assertions.Equal(settings.Validator, m.validator)
 
 	// Set after validation
@@ -99,6 +101,25 @@ func TestNewMessageWithIDEmptySchemaVersion(t *testing.T) {
 	msgDataSchemaVersion := ""
 
 	_, err = newMessageWithID(settings, id, msgDataType, msgDataSchemaVersion, metadata, &FakeHedwigDataField{})
+	assertions.NotNil(err)
+}
+
+func TestNewMessageWithIDInvalidCallbackRegistry(t *testing.T) {
+	assertions := assert.New(t)
+
+	headers := map[string]string{"X-Request-Id": "abc123"}
+	settings := createTestSettings()
+	settings.CallbackRegistry = nil
+	metadata, err := createMetadata(settings, headers)
+	assertions.NotNil(metadata)
+	require.NoError(t, err)
+
+	id := "abcdefgh"
+	msgDataType := "vehicle_created"
+	msgDataSchemaVersion := "1.0"
+	data := FakeHedwigDataField{}
+
+	_, err = newMessageWithID(settings, id, msgDataType, msgDataSchemaVersion, metadata, &data)
 	assertions.NotNil(err)
 }
 
@@ -350,7 +371,11 @@ func TestValidateCallbackValid(t *testing.T) {
 	settings := createTestSettings()
 	expectedCallbackFn := func(ctx context.Context, m *Message) error { return nil }
 
-	RegisterCallback(msgDataType, msgDataSchemaVersion, expectedCallbackFn, func() interface{} { return new(FakeHedwigDataField) })
+	cbk := CallbackKey{
+		MessageType:    msgDataType,
+		MessageVersion: msgDataSchemaVersion,
+	}
+	settings.CallbackRegistry.RegisterCallback(cbk, expectedCallbackFn, func() interface{} { return new(FakeHedwigDataField) })
 
 	m, err := NewMessage(settings, msgDataType, msgDataSchemaVersion, map[string]string{}, &data)
 	require.NoError(t, err)
@@ -359,8 +384,6 @@ func TestValidateCallbackValid(t *testing.T) {
 	assertions.Nil(err)
 
 	assertions.NotNil(m.callback)
-	// reset back to empty for other tests
-	callbackRegistry = make(map[CallbackKey]*callBackInfo)
 }
 
 func TestValidateCallbackInvalid(t *testing.T) {
@@ -375,7 +398,11 @@ func TestValidateCallbackInvalid(t *testing.T) {
 	expectedCallback := func(ctx context.Context, m *Message) error { return nil }
 	settings := createTestSettings()
 
-	RegisterCallback(msgDataType, "2.0", expectedCallback, func() interface{} { return new(FakeHedwigDataField) })
+	cbk := CallbackKey{
+		MessageType:    msgDataType,
+		MessageVersion: "2.0",
+	}
+	settings.CallbackRegistry.RegisterCallback(cbk, expectedCallback, func() interface{} { return new(FakeHedwigDataField) })
 
 	m, err := NewMessage(settings, msgDataType, msgDataSchemaVersion, map[string]string{}, &data)
 	require.NoError(t, err)
@@ -383,6 +410,4 @@ func TestValidateCallbackInvalid(t *testing.T) {
 	err = m.validateCallback(settings)
 	assertions.NotNil(err)
 	assertions.Nil(m.callback)
-	// reset back to empty for other tests
-	callbackRegistry = make(map[CallbackKey]*callBackInfo)
 }

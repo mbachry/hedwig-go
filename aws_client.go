@@ -205,7 +205,12 @@ func (a *awsClient) messageHandler(ctx context.Context, settings *Settings, mess
 	}
 	jsonData = []byte(messageBody)
 
-	message := Message{}
+	if settings.CallbackRegistry == nil {
+		return errors.New("callbackRegistry is required")
+	}
+	message := Message{
+		callbackRegistry: settings.CallbackRegistry,
+	}
 	err := json.Unmarshal(jsonData, &message)
 	if err != nil {
 		logrus.WithError(err).Errorf("invalid message, unable to unmarshal")

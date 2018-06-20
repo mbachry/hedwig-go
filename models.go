@@ -16,15 +16,12 @@ import (
 
 	"github.com/Masterminds/semver"
 	"github.com/pkg/errors"
-	"github.com/satori/go.uuid"
+	uuid "github.com/satori/go.uuid"
 )
 
 var (
 	schemaRe = regexp.MustCompile(`([^/]+)\/([^/]+)$`)
 )
-
-// CallbackFunction is the function signiture for a hedwig callback function
-type CallbackFunction func(context.Context, *Message) error
 
 type metadata struct {
 	Headers   map[string]string `json:"headers,omitempty"`
@@ -41,6 +38,7 @@ type Message struct {
 	Metadata      *metadata   `json:"metadata"`
 	Schema        string      `json:"schema"`
 
+	callbackRegistry  *CallbackRegistry
 	dataSchemaVersion string
 	dataType          string
 	validator         IMessageValidator
@@ -112,17 +110,23 @@ func (m *Message) UnmarshalJSON(b []byte) error {
 	}
 	m.setDataSchema()
 
-	callbackKey := CallbackKey{
+	if m.callbackRegistry == nil {
+		return errors.New("callbackRegistry must be set")
+	}
+
+	dataFactory, err := m.callbackRegistry.getMessageDataFactory(CallbackKey{
 		MessageType:    m.dataType,
 		MessageVersion: m.dataSchemaVersion,
+	})
+	if err != nil {
+		return err
 	}
-	if callBackInfo, ok := callbackRegistry[callbackKey]; ok {
-		data := callBackInfo.NewData()
-		if err := json.Unmarshal(dataContainer.Data, data); err != nil {
-			return err
-		}
-		m.Data = data
+
+	data := dataFactory()
+	if err := json.Unmarshal(dataContainer.Data, data); err != nil {
+		return err
 	}
+	m.Data = data
 
 	return nil
 }
@@ -156,17 +160,15 @@ func (m *Message) validate() error {
 
 // validateCallback is a convenience wrapper to validate and set callback
 func (m *Message) validateCallback(settings *Settings) error {
-	key := CallbackKey{
+	callBackFn, err := m.callbackRegistry.getCallbackFunction(CallbackKey{
 		MessageType:    m.dataType,
 		MessageVersion: m.dataSchemaVersion,
+	})
+	if err != nil {
+		return err
 	}
 
-	callBackInfo, ok := callbackRegistry[key]
-	if !ok {
-		return errors.New("Callback is not defined for message")
-	}
-
-	m.callback = callBackInfo.CallbackFunction
+	m.callback = callBackFn
 	return nil
 }
 
@@ -186,10 +188,13 @@ func newMessageWithID(
 	}
 
 	if data == nil {
-		return nil, errors.New("Expected non-nil data")
+		return nil, errors.New("expected non-nil data")
 	}
 	if metadata == nil {
-		return nil, errors.New("Expected non-nil metadata")
+		return nil, errors.New("expected non-nil metadata")
+	}
+	if settings.CallbackRegistry == nil {
+		return nil, errors.New("expected callback registry to be set")
 	}
 
 	return &Message{
@@ -199,6 +204,7 @@ func newMessageWithID(
 		Metadata:      metadata,
 		Schema:        fmt.Sprintf("%s#/schemas/%s/%s", settings.Validator.SchemaRoot(), dataType, dataSchemaVersion),
 
+		callbackRegistry:  settings.CallbackRegistry,
 		dataSchemaVersion: dataSchemaVersion,
 		dataType:          dataType,
 		validator:         settings.Validator,

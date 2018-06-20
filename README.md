@@ -83,6 +83,7 @@ Next, set up a few configuration settings:
         AWSRegion:                 <YOUR AWS REGION>,
         AWSSecretKey:              <YOUR AWS SECRET KEY>,
         AWSSessionToken:           <YOUR AWS SESSION TOKEN>,
+        CallbackRegistry:          hedwig.NewCallbackRegistry(),
         Publisher:                 "MYAPP",
         QueueName:                 "DEV-MYAPP",
         MessageRouting:            map[hedwig.MessageRouteKey]string{
@@ -119,7 +120,11 @@ Then, simply define your topic handler and register the handler:
     }
 
     // Register handler
-    hedwig.RegisterCallback("email.send", "1", HandleSendEmail, NewSendEmailData)
+    cbk := CallbackKey{
+        MessageType:    "email.send",
+        MessageVersion: "1",
+    }
+    settings.CallbackRegistry.RegisterCallback(cbk, HandleSendEmail, NewSendEmailData)
 ```
 
 Initialize the publisher
