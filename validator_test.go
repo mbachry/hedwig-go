@@ -65,7 +65,7 @@ func TestSchemaKeyFromSchemaValid(t *testing.T) {
 	schemaKey, err := schemaKeyFromSchema(schema)
 	require.NoError(t, err)
 
-	expectedSchemaKey := "vehicle_created/1.0"
+	expectedSchemaKey := "vehicle_created/1"
 	assert.Equal(t, expectedSchemaKey, schemaKey)
 }
 

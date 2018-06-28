@@ -4,7 +4,7 @@
     "description": "Test Schema for Hedwig messages",
     "schemas": {
         "trip_created": {
-            "1.0": {
+            "1": {
                 "description": "This is a message type",
                 "type": "object",
                 "required": [
@@ -17,25 +17,17 @@
                     },
                     "user_id": {
                         "$ref": "https://hedwig.automatic.com/schema#/definitions/UserId/1.0"
-                    }
-                }
-            },
-            "1.1": {
-                "description": "This is a message type",
-                "type": "object",
-                "properties": {
-                    "vehicle_id": {
-                        "$ref": "https://hedwig.automatic.com/schema#/definitions/VehicleId/1.0"
-                    },
-                    "user_id": {
-                        "$ref": "https://hedwig.automatic.com/schema#/definitions/UserId/1.0"
                     },
                     "vin": {
                         "$ref": "https://hedwig.automatic.com/schema#/definitions/VIN/1.0"
                     }
-                }
+                },
+                "x-versions": [
+                    "1.0",
+                    "1.1"
+                ]
             },
-            "2.0": {
+            "2": {
                 "description": "This is a message type",
                 "type": "object",
                 "required": [
@@ -53,11 +45,14 @@
                     "vin": {
                         "$ref": "https://hedwig.automatic.com/schema#/definitions/VIN/1.0"
                     }
-                }
+                },
+                "x-versions": [
+                    "2.0"
+                ]
             }
         },
         "device_created": {
-            "1.0": {
+            "1": {
                 "description": "This is another message type",
                 "type": "object",
                 "required": [
@@ -71,11 +66,14 @@
                     "user_id": {
                         "$ref": "https://hedwig.automatic.com/schema#/definitions/UserId/1.0"
                     }
-                }
+                },
+                "x-versions": [
+                    "1.0"
+                ]
             }
         },
         "vehicle_created": {
-            "1.0": {
+            "1": {
                 "description": "This is another message type",
                 "type": "object",
                 "required": [
@@ -85,7 +83,10 @@
                     "vehicle_id": {
                         "$ref": "https://hedwig.automatic.com/schema#/definitions/VehicleId/1.0"
                     }
-                }
+                },
+                "x-versions": [
+                    "1.0"
+                ]
             }
         }
     },

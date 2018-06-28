@@ -43,7 +43,7 @@ func schemaKeyFromSchema(schema string) (string, error) {
 		return "", errors.New("No schema key found")
 	}
 
-	return fmt.Sprintf("%s/%s.%s", m[1], m[2], m[3]), nil
+	return fmt.Sprintf("%s/%s", m[1], m[2]), nil
 }
 
 // IMessageValidator handles validating Hedwig messages
