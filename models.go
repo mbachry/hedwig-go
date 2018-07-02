@@ -88,7 +88,7 @@ func (m *Message) topic(settings *Settings) (string, error) {
 
 	topic, ok := settings.MessageRouting[key]
 	if !ok {
-		return "", errors.New("Callback is not defined for message")
+		return "", errors.New("Message route is not defined for message")
 	}
 
 	return topic, nil

@@ -186,6 +186,50 @@ func TestPublishPreSerializeHookError(t *testing.T) {
 	fakePreSerializeHook.AssertExpectations(t)
 }
 
+func TestPublishTopicError(t *testing.T) {
+	assertions := assert.New(t)
+
+	fakePreSerializeHook := &FakePreSerializeHook{}
+
+	ctx := context.Background()
+	settings := createTestSettings()
+	settings.MessageRouting = map[MessageRouteKey]string{}
+	settings.PreSerializeHook = fakePreSerializeHook.PreSerializeHook
+	awsClient := &FakeAWSClient{}
+
+	publisher := &Publisher{
+		awsClient: awsClient,
+		settings:  settings,
+	}
+
+	headers := map[string]string{
+		"key": "value",
+	}
+	data := FakeHedwigDataField{
+		VehicleID: "C_1234567890123456",
+	}
+	message, err := NewMessage(settings, "vehicle_created", "1.0", headers, &data)
+	require.NoError(t, err)
+
+	message.Metadata.Headers = map[string]string{
+		"key":  "value",
+		"foo":  "bar",
+		"boom": "blah",
+	}
+	msg, err := message.JSONString()
+	require.NoError(t, err)
+
+	fakePreSerializeHook.On("PreSerializeHook", ctx, &msg).Return(nil)
+
+	require.NoError(t, err)
+
+	err = publisher.Publish(ctx, message)
+	assertions.EqualError(errors.Cause(err), "Message route is not defined for message")
+
+	awsClient.AssertExpectations(t)
+	fakePreSerializeHook.AssertExpectations(t)
+}
+
 func TestNewPublisher(t *testing.T) {
 	settings := createTestSettings()
 	sessionCache := &AWSSessionsCache{}

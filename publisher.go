@@ -41,7 +41,7 @@ func (p *Publisher) Publish(ctx context.Context, message *Message) error {
 
 	messageBodyStr, err := message.JSONString()
 	if err != nil {
-		return nil
+		return err
 	}
 	if p.settings.PreSerializeHook != nil {
 		if err := p.settings.PreSerializeHook(ctx, &messageBodyStr); err != nil {
@@ -51,7 +51,7 @@ func (p *Publisher) Publish(ctx context.Context, message *Message) error {
 
 	topic, err := message.topic(p.settings)
 	if err != nil {
-		return nil
+		return err
 	}
 
 	return p.awsClient.PublishSNS(ctx, p.settings, topic, messageBodyStr, message.Metadata.Headers)
