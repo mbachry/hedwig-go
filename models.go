@@ -39,7 +39,7 @@ type Message struct {
 	Schema        string      `json:"schema"`
 
 	callbackRegistry  *CallbackRegistry
-	dataSchemaVersion string
+	dataSchemaVersion *semver.Version
 	dataType          string
 	validator         IMessageValidator
 
@@ -82,8 +82,8 @@ func (m *Message) execCallback(ctx context.Context, receipt string) error {
 // topic returns SNS message topic
 func (m *Message) topic(settings *Settings) (string, error) {
 	key := MessageRouteKey{
-		MessageType:    m.dataType,
-		MessageVersion: m.dataSchemaVersion,
+		MessageType:         m.dataType,
+		MessageMajorVersion: int(m.dataSchemaVersion.Major()),
 	}
 
 	topic, ok := settings.MessageRouting[key]
@@ -108,15 +108,18 @@ func (m *Message) UnmarshalJSON(b []byte) error {
 	if err := json.Unmarshal(b, &dataContainer); err != nil {
 		return err
 	}
-	m.setDataSchema()
+	err := m.setDataSchema()
+	if err != nil {
+		return err
+	}
 
 	if m.callbackRegistry == nil {
 		return errors.New("callbackRegistry must be set")
 	}
 
 	dataFactory, err := m.callbackRegistry.getMessageDataFactory(CallbackKey{
-		MessageType:    m.dataType,
-		MessageVersion: m.dataSchemaVersion,
+		MessageType:         m.dataType,
+		MessageMajorVersion: int(m.dataSchemaVersion.Major()),
 	})
 	if err != nil {
 		return err
@@ -140,13 +143,14 @@ func (m *Message) setDataSchema() error {
 		return errors.Errorf("Invalid schema groups: %s", m.Schema)
 	}
 	m.dataType = groupMatches[1]
-	// Validate schema version to be in <major>.<minor>
+	// Validate schema version matches semvar versioning
 	dataSchemaVersion := groupMatches[2]
-	_, err := semver.NewVersion(dataSchemaVersion)
+	validatedVersion, err := semver.NewVersion(dataSchemaVersion)
 	if err != nil {
 		return err
 	}
-	m.dataSchemaVersion = dataSchemaVersion
+
+	m.dataSchemaVersion = validatedVersion
 	return nil
 }
 
@@ -161,8 +165,8 @@ func (m *Message) validate() error {
 // validateCallback is a convenience wrapper to validate and set callback
 func (m *Message) validateCallback(settings *Settings) error {
 	callBackFn, err := m.callbackRegistry.getCallbackFunction(CallbackKey{
-		MessageType:    m.dataType,
-		MessageVersion: m.dataSchemaVersion,
+		MessageType:         m.dataType,
+		MessageMajorVersion: int(m.dataSchemaVersion.Major()),
 	})
 	if err != nil {
 		return err
@@ -181,12 +185,6 @@ func (m *Message) withValidator(validator IMessageValidator) *Message {
 func newMessageWithID(
 	settings *Settings, id string, dataType string, dataSchemaVersion string,
 	metadata *metadata, data interface{}) (*Message, error) {
-	// Validate schema version to be in <major>.<minor>
-	_, err := semver.NewVersion(dataSchemaVersion)
-	if err != nil {
-		return nil, err
-	}
-
 	if data == nil {
 		return nil, errors.New("expected non-nil data")
 	}
@@ -197,18 +195,22 @@ func newMessageWithID(
 		return nil, errors.New("expected callback registry to be set")
 	}
 
-	return &Message{
+	m := &Message{
 		Data:          data,
 		FormatVersion: FormatVersionV1,
 		ID:            id,
 		Metadata:      metadata,
 		Schema:        fmt.Sprintf("%s#/schemas/%s/%s", settings.Validator.SchemaRoot(), dataType, dataSchemaVersion),
 
-		callbackRegistry:  settings.CallbackRegistry,
-		dataSchemaVersion: dataSchemaVersion,
-		dataType:          dataType,
-		validator:         settings.Validator,
-	}, nil
+		callbackRegistry: settings.CallbackRegistry,
+		dataType:         dataType,
+		validator:        settings.Validator,
+	}
+	err := m.setDataSchema()
+	if err != nil {
+		return nil, err
+	}
+	return m, nil
 }
 
 // NewMessage creates new Hedwig messages based off of message type and schema version

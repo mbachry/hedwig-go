@@ -141,11 +141,11 @@ type AWSClientTestSuite struct {
 }
 
 func (suite *AWSClientTestSuite) SetupTest() {
-	suite.fakeCallback = &FakeCallback{}
+	suite.fakeCallback = new(FakeCallback)
 	suite.settings = createTestSettings()
 	cbk := CallbackKey{
-		MessageType:    "vehicle_created",
-		MessageVersion: "1.0",
+		MessageType:         "vehicle_created",
+		MessageMajorVersion: 1,
 	}
 	suite.settings.CallbackRegistry.RegisterCallback(
 		cbk, suite.fakeCallback.Callback, func() interface{} { return new(FakeHedwigDataField) })

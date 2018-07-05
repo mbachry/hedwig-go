@@ -17,7 +17,7 @@ type CallbackKey struct {
 	// Message type
 	MessageType string
 	// Message major version
-	MessageVersion string
+	MessageMajorVersion int
 }
 
 // CallbackFunction is the function signature for a hedwig callback function

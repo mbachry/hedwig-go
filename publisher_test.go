@@ -43,8 +43,8 @@ func TestPublishNoHooks(t *testing.T) {
 	settings := createTestSettings()
 	settings.MessageRouting = map[MessageRouteKey]string{
 		{
-			MessageType:    "vehicle_created",
-			MessageVersion: "1.0",
+			MessageType:         "vehicle_created",
+			MessageMajorVersion: 1,
 		}: "dev-vehicle-created",
 	}
 	awsClient := &FakeAWSClient{}
@@ -84,8 +84,8 @@ func TestPublish(t *testing.T) {
 	settings.MessageDefaultHeadersHook = fakeMessageDefaultHeadersHook.MessageDefaultHeadersHook
 	settings.MessageRouting = map[MessageRouteKey]string{
 		{
-			MessageType:    "vehicle_created",
-			MessageVersion: "1.0",
+			MessageType:         "vehicle_created",
+			MessageMajorVersion: 1,
 		}: "dev-vehicle-created",
 	}
 	settings.PreSerializeHook = fakePreSerializeHook.PreSerializeHook
@@ -146,8 +146,8 @@ func TestPublishPreSerializeHookError(t *testing.T) {
 	settings := createTestSettings()
 	settings.MessageRouting = map[MessageRouteKey]string{
 		{
-			MessageType:    "vehicle_created",
-			MessageVersion: "1.0",
+			MessageType:         "vehicle_created",
+			MessageMajorVersion: 1,
 		}: "dev-vehicle-created",
 	}
 	settings.PreSerializeHook = fakePreSerializeHook.PreSerializeHook

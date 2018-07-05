@@ -20,7 +20,7 @@ type MessageRouteKey struct {
 	// Message type
 	MessageType string
 	// Message major version
-	MessageVersion string
+	MessageMajorVersion int
 }
 
 // LambdaRequest contains request objects for a lambda

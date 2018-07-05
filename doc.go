@@ -44,7 +44,7 @@ Define a few required settings. Please see the settings struct for the additiona
         MessageRouting:            map[hedwig.MessageRouteKey]string{
             hedwig.MessageRouteKey{
                 MessageType:    "email.send",
-    		        MessageVersion: "1",
+    		        MessageMajorVersion: 1,
     	      }: "send_email",
         },
         Validator:                 validator,

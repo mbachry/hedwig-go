@@ -89,7 +89,7 @@ Next, set up a few configuration settings:
         MessageRouting:            map[hedwig.MessageRouteKey]string{
             hedwig.MessageRouteKey{
                 MessageType:    "email.send",
-    		        MessageVersion: "1",
+    		        MessageMajorVersion: 1,
     	      }: "send_email",
         },
         Validator:                 validator,
@@ -122,7 +122,7 @@ Then, simply define your topic handler and register the handler:
     // Register handler
     cbk := CallbackKey{
         MessageType:    "email.send",
-        MessageVersion: "1",
+        MessageMajorVersion: 1,
     }
     settings.CallbackRegistry.RegisterCallback(cbk, HandleSendEmail, NewSendEmailData)
 ```
@@ -164,7 +164,7 @@ $ govendor sync
 
 ```bash
 
-$ make test  
+$ make test
 ```
 
 ## Getting Help

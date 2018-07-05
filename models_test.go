@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Masterminds/semver"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -79,7 +80,9 @@ func TestNewMessageWithIDSuccess(t *testing.T) {
 	assertions.Equal(id, m.ID)
 	assertions.Equal(expectedSchema, m.Schema)
 	assertions.Equal(msgDataType, m.dataType)
-	assertions.Equal(msgDataSchemaVersion, m.dataSchemaVersion)
+	ver, err := semver.NewVersion(msgDataSchemaVersion)
+	assertions.NoError(err)
+	assertions.Equal(ver, m.dataSchemaVersion)
 	assertions.Equal(settings.CallbackRegistry, m.callbackRegistry)
 	assertions.Equal(settings.Validator, m.validator)
 
@@ -190,7 +193,9 @@ func TestNewMessage(t *testing.T) {
 	assertions.True(len(m.ID) > 0 && len(m.ID) < 40)
 	assertions.Equal(headers, m.Metadata.Headers)
 	assertions.Equal(expectedSchema, m.Schema)
-	assertions.Equal(msgDataSchemaVersion, m.dataSchemaVersion)
+	ver, err := semver.NewVersion(msgDataSchemaVersion)
+	assertions.NoError(err)
+	assertions.Equal(ver, m.dataSchemaVersion)
 	assertions.Equal(msgDataType, m.dataType)
 	assertions.Equal(settings.Validator, m.validator)
 }
@@ -266,7 +271,7 @@ func TestMessageTopic(t *testing.T) {
 	assertions := assert.New(t)
 
 	msgDataType := "vehicle_created"
-	msgDataSchemaVersion := "1.0"
+	msgDataSchemaVersion := 1
 	data := FakeHedwigDataField{
 		VehicleID: "C_123",
 	}
@@ -275,12 +280,12 @@ func TestMessageTopic(t *testing.T) {
 	settings := createTestSettings()
 	settings.MessageRouting = map[MessageRouteKey]string{
 		{
-			MessageType:    msgDataType,
-			MessageVersion: msgDataSchemaVersion,
+			MessageType:         msgDataType,
+			MessageMajorVersion: msgDataSchemaVersion,
 		}: expectedTopic,
 	}
 
-	m, err := NewMessage(settings, msgDataType, msgDataSchemaVersion, map[string]string{}, &data)
+	m, err := NewMessage(settings, msgDataType, "1.0", map[string]string{}, &data)
 	require.NoError(t, err)
 
 	topic, err := m.topic(settings)
@@ -363,7 +368,7 @@ func TestValidateCallbackValid(t *testing.T) {
 	assertions := assert.New(t)
 
 	msgDataType := "vehicle_created"
-	msgDataSchemaVersion := "1.0"
+	msgDataSchemaVersion := 1
 	data := FakeHedwigDataField{
 		VehicleID: "C_1234567890123456",
 	}
@@ -372,12 +377,12 @@ func TestValidateCallbackValid(t *testing.T) {
 	expectedCallbackFn := func(ctx context.Context, m *Message) error { return nil }
 
 	cbk := CallbackKey{
-		MessageType:    msgDataType,
-		MessageVersion: msgDataSchemaVersion,
+		MessageType:         msgDataType,
+		MessageMajorVersion: msgDataSchemaVersion,
 	}
 	settings.CallbackRegistry.RegisterCallback(cbk, expectedCallbackFn, func() interface{} { return new(FakeHedwigDataField) })
 
-	m, err := NewMessage(settings, msgDataType, msgDataSchemaVersion, map[string]string{}, &data)
+	m, err := NewMessage(settings, msgDataType, "1.0", map[string]string{}, &data)
 	require.NoError(t, err)
 
 	err = m.validateCallback(settings)
@@ -399,8 +404,8 @@ func TestValidateCallbackInvalid(t *testing.T) {
 	settings := createTestSettings()
 
 	cbk := CallbackKey{
-		MessageType:    msgDataType,
-		MessageVersion: "2.0",
+		MessageType:         msgDataType,
+		MessageMajorVersion: 2,
 	}
 	settings.CallbackRegistry.RegisterCallback(cbk, expectedCallback, func() interface{} { return new(FakeHedwigDataField) })
 
