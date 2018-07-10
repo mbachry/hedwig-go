@@ -4,7 +4,7 @@
     "description": "Test Schema for Hedwig messages",
     "schemas": {
         "trip_created": {
-            "1": {
+            "1.*": {
                 "description": "This is a message type",
                 "type": "object",
                 "required": [
@@ -27,7 +27,7 @@
                     "1.1"
                 ]
             },
-            "2": {
+            "2.*": {
                 "description": "This is a message type",
                 "type": "object",
                 "required": [
@@ -52,7 +52,7 @@
             }
         },
         "device_created": {
-            "1": {
+            "1.*": {
                 "description": "This is another message type",
                 "type": "object",
                 "required": [
@@ -73,7 +73,7 @@
             }
         },
         "vehicle_created": {
-            "1": {
+            "1.*": {
                 "description": "This is another message type",
                 "type": "object",
                 "required": [
