@@ -645,7 +645,7 @@ func (suite *AWSClientTestSuite) TestAWSClient_HandleLambdaEventContextCancel() 
 		// Have to use Anything cause comparison fails for function pointers
 		fakeCallback.On("Callback", mock.Anything, mock.Anything).Return(
 			nil).Run(func(args mock.Arguments) {
-			time.Sleep(1 * time.Millisecond)
+			time.Sleep(100 * time.Millisecond)
 		})
 
 		msgJSON, err := message.JSONString()
