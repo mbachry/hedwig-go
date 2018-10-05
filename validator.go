@@ -21,6 +21,8 @@ import (
 
 var schemaKeyRegex *regexp.Regexp
 
+const xVersionsKey = "x-versions"
+
 // Add custom JSON schema formats
 func init() {
 	schemaKeyRegex = regexp.MustCompile(`([^/]+)/(\d+)\.(\d+)$`)
@@ -52,12 +54,30 @@ type IMessageValidator interface {
 	Validate(message *Message) error
 }
 
+func extractXVersions(schemaByte []byte, schemaURL string) ([]string, error) {
+	schemaJSONDecoded := map[string]interface{}{}
+	err := json.Unmarshal(schemaByte, &schemaJSONDecoded)
+	if err != nil {
+		return nil, err
+	}
+	xVersions, ok := schemaJSONDecoded[xVersionsKey]
+	if !ok {
+		return nil, errors.Errorf("x-versions not defined for message for schemaURL: %s", schemaURL)
+	}
+	typeConvertedXVersions := []string{}
+	for _, version := range xVersions.([]interface{}) {
+		typeConvertedXVersions = append(typeConvertedXVersions, version.(string))
+	}
+	return typeConvertedXVersions, nil
+}
+
 // NewMessageValidatorFromBytes from an byte encoded schema file
 func NewMessageValidatorFromBytes(schemaFile []byte) (IMessageValidator, error) {
 	addJSONSchemaCustomFormats()
 
 	validator := messageValidator{
 		compiledSchemaMap: make(map[string]*jsonschema.Schema),
+		schemaVersionsMap: make(map[string]map[string]bool),
 	}
 
 	var parsedSchema map[string]interface{}
@@ -84,6 +104,17 @@ func NewMessageValidatorFromBytes(schemaFile []byte) (IMessageValidator, error) 
 			compiler.Draft = jsonschema.Draft4
 
 			schemaURL := fmt.Sprintf("%s/schemas/%s/%s", validator.schemaID, schemaName, version)
+			schemaJSONDecoded := map[string]interface{}{}
+			err = json.Unmarshal(schemaByte, &schemaJSONDecoded)
+			if err != nil {
+				return nil, err
+			}
+
+			xVersions, err := extractXVersions(schemaByte, schemaURL)
+			if err != nil {
+				return nil, err
+			}
+
 			err = compiler.AddResource(schemaURL, strings.NewReader(string(schemaByte)))
 			if err != nil {
 				return nil, err
@@ -101,6 +132,11 @@ func NewMessageValidatorFromBytes(schemaFile []byte) (IMessageValidator, error) 
 
 			schemaKey := fmt.Sprintf("%s/%s", schemaName, version)
 			validator.compiledSchemaMap[schemaKey] = schema
+			versionsForThisSchema := map[string]bool{}
+			for _, version := range xVersions {
+				versionsForThisSchema[version] = true
+			}
+			validator.schemaVersionsMap[schemaKey] = versionsForThisSchema
 		}
 	}
 
@@ -119,9 +155,12 @@ func NewMessageValidator(schemaFilePath string) (IMessageValidator, error) {
 
 // messageValidator is an implementation of MessageValidator
 type messageValidator struct {
-	// Format: (schema name, schema version) => schema
-	//   (parking.created, 3.0) => schema
+	// Format: schemakey("schema name/schema major version") => schema
+	//   parking.created/3 => schema
 	compiledSchemaMap map[string]*jsonschema.Schema
+	// Format: schemakey => {version_string: bool}
+	// 		   parking.created/3 => {"3.0": true, "3.1": true}
+	schemaVersionsMap map[string]map[string]bool
 
 	schemaID string
 }
@@ -148,6 +187,13 @@ func (mv *messageValidator) Validate(message *Message) error {
 	}
 
 	if schema, ok := mv.compiledSchemaMap[schemaKey]; ok {
+		if xVersions, ok := mv.schemaVersionsMap[schemaKey]; ok {
+			msgSchema := message.dataSchemaVersion.Original()
+			if _, ok := xVersions[msgSchema]; !ok {
+				return errors.Errorf("version %s not in valid versions for %s", msgSchema, schemaKey)
+			}
+		}
+
 		if err := schema.Validate(strings.NewReader(msgDataJSONStr)); err != nil {
 			return errors.Wrapf(err, "message failed json-schema validation")
 		}
