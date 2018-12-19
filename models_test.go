@@ -82,7 +82,7 @@ func TestNewMessageWithIDSuccess(t *testing.T) {
 	assertions.Equal(msgDataType, m.dataType)
 	ver, err := semver.NewVersion(msgDataSchemaVersion)
 	assertions.NoError(err)
-	assertions.Equal(ver, m.dataSchemaVersion)
+	assertions.Equal(ver, m.DataSchemaVersion)
 	assertions.Equal(settings.CallbackRegistry, m.callbackRegistry)
 	assertions.Equal(settings.Validator, m.validator)
 
@@ -195,7 +195,7 @@ func TestNewMessage(t *testing.T) {
 	assertions.Equal(expectedSchema, m.Schema)
 	ver, err := semver.NewVersion(msgDataSchemaVersion)
 	assertions.NoError(err)
-	assertions.Equal(ver, m.dataSchemaVersion)
+	assertions.Equal(ver, m.DataSchemaVersion)
 	assertions.Equal(msgDataType, m.dataType)
 	assertions.Equal(settings.Validator, m.validator)
 }

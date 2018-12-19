@@ -188,7 +188,7 @@ func (mv *messageValidator) Validate(message *Message) error {
 
 	if schema, ok := mv.compiledSchemaMap[schemaKey]; ok {
 		if xVersions, ok := mv.schemaVersionsMap[schemaKey]; ok {
-			msgSchema := message.dataSchemaVersion.Original()
+			msgSchema := message.DataSchemaVersion.Original()
 			if _, ok := xVersions[msgSchema]; !ok {
 				return errors.Errorf("version %s not in valid versions for %s", msgSchema, schemaKey)
 			}

@@ -38,10 +38,11 @@ type Message struct {
 	Metadata      *metadata   `json:"metadata"`
 	Schema        string      `json:"schema"`
 
-	callbackRegistry  *CallbackRegistry
-	dataSchemaVersion *semver.Version
-	dataType          string
-	validator         IMessageValidator
+	DataSchemaVersion *semver.Version `json:"-"`
+
+	callbackRegistry *CallbackRegistry
+	dataType         string
+	validator        IMessageValidator
 
 	// Set after validation
 	callback CallbackFunction
@@ -83,7 +84,7 @@ func (m *Message) execCallback(ctx context.Context, receipt string) error {
 func (m *Message) topic(settings *Settings) (string, error) {
 	key := MessageRouteKey{
 		MessageType:         m.dataType,
-		MessageMajorVersion: int(m.dataSchemaVersion.Major()),
+		MessageMajorVersion: int(m.DataSchemaVersion.Major()),
 	}
 
 	topic, ok := settings.MessageRouting[key]
@@ -119,7 +120,7 @@ func (m *Message) UnmarshalJSON(b []byte) error {
 
 	dataFactory, err := m.callbackRegistry.getMessageDataFactory(CallbackKey{
 		MessageType:         m.dataType,
-		MessageMajorVersion: int(m.dataSchemaVersion.Major()),
+		MessageMajorVersion: int(m.DataSchemaVersion.Major()),
 	})
 	if err != nil {
 		return err
@@ -150,7 +151,7 @@ func (m *Message) setDataSchema() error {
 		return err
 	}
 
-	m.dataSchemaVersion = validatedVersion
+	m.DataSchemaVersion = validatedVersion
 	return nil
 }
 
@@ -166,7 +167,7 @@ func (m *Message) validate() error {
 func (m *Message) validateCallback(settings *Settings) error {
 	callBackFn, err := m.callbackRegistry.getCallbackFunction(CallbackKey{
 		MessageType:         m.dataType,
-		MessageMajorVersion: int(m.dataSchemaVersion.Major()),
+		MessageMajorVersion: int(m.DataSchemaVersion.Major()),
 	})
 	if err != nil {
 		return err
