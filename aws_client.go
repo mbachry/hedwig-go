@@ -198,8 +198,8 @@ func (a *awsClient) getSQSQueueURL(ctx context.Context, queueName string) (*stri
 
 func (a *awsClient) messageHandler(ctx context.Context, settings *Settings, messageBody string, receipt string) error {
 	var jsonData []byte
-	if settings.PostDeserializeHook != nil {
-		if err := settings.PostDeserializeHook(ctx, &messageBody); err != nil {
+	if settings.PreDeserializeHook != nil {
+		if err := settings.PreDeserializeHook(&ctx, &messageBody); err != nil {
 			return errors.Wrapf(err, "post deserialize hook failed")
 		}
 	}

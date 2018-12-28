@@ -31,7 +31,7 @@ type FakePreSerializeHook struct {
 	mock.Mock
 }
 
-func (fpsh *FakePreSerializeHook) PreSerializeHook(ctx context.Context, messageData *string) error {
+func (fpsh *FakePreSerializeHook) PreSerializeHook(ctx *context.Context, messageData *string) error {
 	args := fpsh.Called(ctx, messageData)
 	return args.Error(0)
 }
@@ -120,7 +120,7 @@ func TestPublish(t *testing.T) {
 	}
 	msg, err := message.JSONString()
 	require.NoError(t, err)
-	fakePreSerializeHook.On("PreSerializeHook", ctx, &msg).Return(nil)
+	fakePreSerializeHook.On("PreSerializeHook", &ctx, &msg).Return(nil)
 
 	require.NoError(t, err)
 	messageBody, err := json.Marshal(message)
@@ -175,7 +175,7 @@ func TestPublishPreSerializeHookError(t *testing.T) {
 	msg, err := message.JSONString()
 	require.NoError(t, err)
 
-	fakePreSerializeHook.On("PreSerializeHook", ctx, &msg).Return(errors.Errorf("Fake error!"))
+	fakePreSerializeHook.On("PreSerializeHook", &ctx, &msg).Return(errors.Errorf("Fake error!"))
 
 	require.NoError(t, err)
 
@@ -219,7 +219,7 @@ func TestPublishTopicError(t *testing.T) {
 	msg, err := message.JSONString()
 	require.NoError(t, err)
 
-	fakePreSerializeHook.On("PreSerializeHook", ctx, &msg).Return(nil)
+	fakePreSerializeHook.On("PreSerializeHook", &ctx, &msg).Return(nil)
 
 	require.NoError(t, err)
 

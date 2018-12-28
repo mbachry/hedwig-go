@@ -125,11 +125,11 @@ func (fpph *FakePreProcessHookLambda) PreProcessHookLambda(r *LambdaRequest) err
 	return args.Error(0)
 }
 
-type FakePostDeserializeHook struct {
+type FakePreDeserializeHook struct {
 	mock.Mock
 }
 
-func (fpdh *FakePostDeserializeHook) PostDeserializeHook(ctx context.Context, messageData *string) error {
+func (fpdh *FakePreDeserializeHook) PreDeserializeHook(ctx *context.Context, messageData *string) error {
 	args := fpdh.Called(ctx, messageData)
 	return args.Error(0)
 }
@@ -924,8 +924,8 @@ func (suite *AWSClientTestSuite) TestAWSClient_messageHandler() {
 	assertions := assert.New(suite.T())
 
 	fakeCallback := suite.fakeCallback
-	fakePostDeserializeHook := &FakePostDeserializeHook{}
-	suite.settings.PostDeserializeHook = fakePostDeserializeHook.PostDeserializeHook
+	fakePreDeserializeHook := &FakePreDeserializeHook{}
+	suite.settings.PreDeserializeHook = fakePreDeserializeHook.PreDeserializeHook
 	awsClient := awsClient{}
 
 	data := FakeHedwigDataField{
@@ -947,13 +947,13 @@ func (suite *AWSClientTestSuite) TestAWSClient_messageHandler() {
 	var messageBodyMap map[string]interface{}
 	err = json.Unmarshal([]byte(msgJSON), &messageBodyMap)
 	suite.Require().NoError(err)
-	fakePostDeserializeHook.On("PostDeserializeHook", ctx, &msgJSON).Return(nil)
+	fakePreDeserializeHook.On("PreDeserializeHook", &ctx, &msgJSON).Return(nil)
 
 	err = awsClient.messageHandler(ctx, suite.settings, msgJSON, receipt)
 	assertions.Nil(err)
 
 	fakeCallback.AssertExpectations(suite.T())
-	fakePostDeserializeHook.AssertExpectations(suite.T())
+	fakePreDeserializeHook.AssertExpectations(suite.T())
 
 	expectedMsg := message
 	msg := fakeCallback.Calls[0].Arguments.Get(1).(*Message)
@@ -972,8 +972,8 @@ func (suite *AWSClientTestSuite) TestAWSClient_messageHandlerHookError() {
 	assertions := assert.New(suite.T())
 
 	fakeCallback := suite.fakeCallback
-	fakePostDeserializeHook := &FakePostDeserializeHook{}
-	suite.settings.PostDeserializeHook = fakePostDeserializeHook.PostDeserializeHook
+	fakePreDeserializeHook := &FakePreDeserializeHook{}
+	suite.settings.PreDeserializeHook = fakePreDeserializeHook.PreDeserializeHook
 	awsClient := awsClient{}
 
 	data := FakeHedwigDataField{
@@ -986,14 +986,14 @@ func (suite *AWSClientTestSuite) TestAWSClient_messageHandlerHookError() {
 	suite.Require().NoError(err)
 
 	expectedError := errors.Errorf("Fake error!")
-	fakePostDeserializeHook.On("PostDeserializeHook", ctx, &msgJSON).Return(expectedError)
+	fakePreDeserializeHook.On("PreDeserializeHook", &ctx, &msgJSON).Return(expectedError)
 
 	receipt := uuid.Must(uuid.NewV4()).String()
 	err = awsClient.messageHandler(ctx, suite.settings, msgJSON, receipt)
 	assertions.EqualError(errors.Cause(err), "Fake error!")
 
 	fakeCallback.AssertExpectations(suite.T())
-	fakePostDeserializeHook.AssertExpectations(suite.T())
+	fakePreDeserializeHook.AssertExpectations(suite.T())
 }
 
 func (suite *AWSClientTestSuite) TestAWSClient_messageHandlerNoHook() {

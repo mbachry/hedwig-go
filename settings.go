@@ -52,11 +52,11 @@ type PreProcessHookSQS func(r *SQSRequest) error
 
 // PreSerializeHook is called before a message is serialized to JSON.
 // This hook may be used to modify the format over the wire.
-type PreSerializeHook func(ctx context.Context, messageData *string) error
+type PreSerializeHook func(ctx *context.Context, messageData *string) error
 
-// PostDeserializeHook is called after a message has been deserialized from JSON, but
+// PreDeserializeHook is called after a message has been deserialized from JSON, but
 // before a Message is created and validated. This hook may be used to modify the format over the wire.
-type PostDeserializeHook func(ctx context.Context, messageData *string) error
+type PreDeserializeHook func(ctx *context.Context, messageData *string) error
 
 // Settings for Hedwig
 type Settings struct {
@@ -94,9 +94,8 @@ type Settings struct {
 	// Hedwig hook called before a message is serialized to JSON
 	PreSerializeHook PreSerializeHook // optional
 
-	// Hedwig hook called after a message has been deserialized from
-	// JSON, but before a Message is created and validated
-	PostDeserializeHook PostDeserializeHook // optional
+	// Hedwig hook called before a message has been deserialized into a Message struct
+	PreDeserializeHook PreDeserializeHook // optional
 
 	// Publisher name
 	Publisher string
