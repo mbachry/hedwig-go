@@ -43,8 +43,8 @@ Create a JSON-schema and save as ``schema.json``:
 ```json
 
     {
-        "id": "https://hedwig.automatic.com/schema#",
-        "$schema": "http://json-schema.org/draft-04/schema",
+        "$id": "https://hedwig.automatic.com/schema#",
+        "$schema": "http://json-schema.org/draft-07/schema",
         "schemas": {
             "email.send": {
                 "1.*": {

@@ -112,8 +112,8 @@ func TestInvalidNoXVersions(t *testing.T) {
 	assertions := assert.New(t)
 	schemaMissingXversions := `
 	{
-		"id": "https://hedwig.automatic.com/schema",
-		"$schema": "http://json-schema.org/draft-04/schema#",
+		"$id": "https://hedwig.automatic.com/schema",
+		"$schema": "http://json-schema.org/draft-07/schema#",
 		"description": "Test Schema for Hedwig messages",
 		"schemas": {
 			"trip_created": {

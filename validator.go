@@ -87,7 +87,7 @@ func NewMessageValidatorFromBytes(schemaFile []byte) (IMessageValidator, error) 
 	}
 
 	// Extract base url from schema id
-	validator.schemaID = parsedSchema["id"].(string)
+	validator.schemaID = parsedSchema["$id"].(string)
 
 	schemaMap := parsedSchema["schemas"].(map[string]interface{})
 	for schemaName, schemaVersionObj := range schemaMap {
@@ -100,8 +100,8 @@ func NewMessageValidatorFromBytes(schemaFile []byte) (IMessageValidator, error) 
 
 			compiler := jsonschema.NewCompiler()
 
-			// Force to draft version 4
-			compiler.Draft = jsonschema.Draft4
+			// Force to draft version 7
+			compiler.Draft = jsonschema.Draft7
 
 			schemaURL := fmt.Sprintf("%s/schemas/%s/%s", validator.schemaID, schemaName, version)
 			schemaJSONDecoded := map[string]interface{}{}
