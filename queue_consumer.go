@@ -30,7 +30,7 @@ func (c *queueConsumer) ListenForMessages(ctx context.Context, request *ListenRe
 		default:
 			if deadline, ok := ctx.Deadline(); ok {
 				// is shutting down?
-				if deadline.Sub(time.Now()) < c.settings.ShutdownTimeout {
+				if time.Until(deadline) < c.settings.ShutdownTimeout {
 					return nil
 				}
 			}

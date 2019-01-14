@@ -50,7 +50,7 @@ func (cr *CallbackRegistry) RegisterCallback(cbk CallbackKey, cbf CallbackFuncti
 func (cr *CallbackRegistry) getCallbackFunction(cbk CallbackKey) (CallbackFunction, error) {
 	fn, ok := cr.functions[cbk]
 	if !ok {
-		return nil, errors.New("Callback function is not defined for message")
+		return nil, errors.New("callback function is not defined for message")
 	}
 	return fn, nil
 }
@@ -58,7 +58,7 @@ func (cr *CallbackRegistry) getCallbackFunction(cbk CallbackKey) (CallbackFuncti
 func (cr *CallbackRegistry) getMessageDataFactory(cbk CallbackKey) (NewData, error) {
 	d, ok := cr.datas[cbk]
 	if !ok {
-		return nil, errors.New("Message data factory is not defined for message")
+		return nil, errors.New("message data factory is not defined for message")
 	}
 	return d, nil
 }

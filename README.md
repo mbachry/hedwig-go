@@ -150,14 +150,14 @@ And finally, send a message:
 
 ### Prerequisites
 
-Install [govendor](https://github.com/kardianos/govendor)
+Install go1.11.x
 
 ### Getting Started
 
 ```bash
 
 $ cd ${GOPATH}/src/github.com/Automatic/hedwig-go
-$ govendor sync
+$ go build
 ```
 
 ### Running Tests

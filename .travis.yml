@@ -3,30 +3,32 @@ sudo: false
 language: go
 
 go:
-- 1.10.x
-- master
+  - "1.11.x"
+  - tip
+
+env:
+  GO111MODULE=on
 
 git:
   depth: 1
 
 matrix:
   allow_failures:
-  - go: master
+  - go: tip
   fast_finish: true
 
 install:
-- go get github.com/kardianos/govendor
+- go get -mod=readonly -v ./...
 - go get -u github.com/client9/misspell/cmd/misspell
-- go get -u honnef.co/go/tools/cmd/megacheck
+- go get -u honnef.co/go/tools/cmd/staticcheck
+
 
 before_script:
-- EXCLUDE_VENDOR=$(find . -not -path "./vendor/*" -name "*.go")
-- govendor sync
-- go vet $EXCLUDE_VENDOR
+- go vet
+- go mod verify
 - misspell -error -locale US *.go
-- megacheck $EXCLUDE_VENDOR
-- (for file in $EXCLUDE_VENDOR; do diff -u <(echo -n) <(gofmt -d -s $file) || exit 1; done)
-- $(exit $(govendor list -no-status +outside | wc -l))
+- staticcheck
+- ./.travis.gofmt.sh
 
 script: make test
 
