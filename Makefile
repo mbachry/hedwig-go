@@ -1,7 +1,4 @@
 .PHONY: test
 
-gofmt:
-	./scripts/gofmt.sh
-
 test:
-	./scripts/run-tests.sh
+	go test -mod=readonly -v -tags test -race ./...

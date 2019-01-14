@@ -30,7 +30,7 @@ func TestConsumer_HandleLambdaEvent(t *testing.T) {
 		Records: []events.SNSEventRecord{
 			{
 				SNS: events.SNSEntity{
-					MessageID: uuid.Must(uuid.NewV4()).String(),
+					MessageID: uuid.NewV4().String(),
 					Message:   "message",
 				},
 			},

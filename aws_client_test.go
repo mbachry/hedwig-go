@@ -213,8 +213,10 @@ func (suite *AWSClientTestSuite) TestAWSClient_FetchAndProcessMessages() {
 		// Override time so comparison does not fail due to precision
 		message.Metadata.Timestamp = JSONTime(
 			time.Unix(0, int64(i+1)*int64(time.Hour)))
-		message.validate()
-		message.validateCallback(suite.settings)
+		err = message.validate()
+		suite.Require().NoError(err)
+		err = message.validateCallback(suite.settings)
+		suite.Require().NoError(err)
 
 		// Have to use Anything cause comparison fails for function pointers
 		fakeCallback.On("Callback", ctx, mock.Anything).Return(nil)
@@ -224,7 +226,7 @@ func (suite *AWSClientTestSuite) TestAWSClient_FetchAndProcessMessages() {
 
 		outMessages[i] = &sqs.Message{
 			Body:          aws.String(msgJSON),
-			ReceiptHandle: aws.String(uuid.Must(uuid.NewV4()).String()),
+			ReceiptHandle: aws.String(uuid.NewV4().String()),
 		}
 		fakePreProcessHookSQS.On("PreProcessHookSQS", &SQSRequest{
 			Context:      ctx,
@@ -323,7 +325,7 @@ func (suite *AWSClientTestSuite) TestAWSClient_FetchAndProcessMessagesHookError(
 
 		outMessages[i] = &sqs.Message{
 			Body:          aws.String(msgJSON),
-			ReceiptHandle: aws.String(uuid.Must(uuid.NewV4()).String()),
+			ReceiptHandle: aws.String(uuid.NewV4().String()),
 		}
 		fakePreProcessHookSQS.On("PreProcessHookSQS", &SQSRequest{
 			Context:      ctx,
@@ -386,7 +388,7 @@ func (suite *AWSClientTestSuite) TestAWSClient_FetchAndProcessMessagesNoHook() {
 
 		outMessages[i] = &sqs.Message{
 			Body:          aws.String(msgJSON),
-			ReceiptHandle: aws.String(uuid.Must(uuid.NewV4()).String()),
+			ReceiptHandle: aws.String(uuid.NewV4().String()),
 		}
 		message.Metadata.Receipt = *outMessages[i].ReceiptHandle
 		expectedMessages[i] = message
@@ -450,8 +452,10 @@ func (suite *AWSClientTestSuite) TestAWSClient_FetchAndProcessMessagesNoDeleteOn
 	// Override time so comparison does not fail due to precision
 	message.Metadata.Timestamp = JSONTime(
 		time.Unix(0, int64(1)*int64(time.Hour)))
-	message.validate()
-	message.validateCallback(suite.settings)
+	err = message.validate()
+	suite.Require().NoError(err)
+	err = message.validateCallback(suite.settings)
+	suite.Require().NoError(err)
 
 	// Have to use Anything cause comparison fails for function pointers
 	fakeCallback.On("Callback", ctx, mock.Anything).Return(errors.New("my bad"))
@@ -463,7 +467,7 @@ func (suite *AWSClientTestSuite) TestAWSClient_FetchAndProcessMessagesNoDeleteOn
 		Messages: []*sqs.Message{
 			{
 				Body:          aws.String(msgJSON),
-				ReceiptHandle: aws.String(uuid.Must(uuid.NewV4()).String()),
+				ReceiptHandle: aws.String(uuid.NewV4().String()),
 			},
 		},
 	}
@@ -524,8 +528,10 @@ func (suite *AWSClientTestSuite) TestAWSClient_HandleLambdaEvent() {
 		// Override time so comparison does not fail due to precision
 		message.Metadata.Timestamp = JSONTime(
 			time.Unix(0, int64(i+1)*int64(time.Hour)))
-		message.validate()
-		message.validateCallback(suite.settings)
+		err = message.validate()
+		suite.Require().NoError(err)
+		err = message.validateCallback(suite.settings)
+		suite.Require().NoError(err)
 		expectedMessages[i] = message
 
 		// Have to use Anything cause comparison fails for function pointers
@@ -536,7 +542,7 @@ func (suite *AWSClientTestSuite) TestAWSClient_HandleLambdaEvent() {
 
 		snsRecords[i] = events.SNSEventRecord{
 			SNS: events.SNSEntity{
-				MessageID: uuid.Must(uuid.NewV4()).String(),
+				MessageID: uuid.NewV4().String(),
 				Message:   msgJSON,
 			},
 		}
@@ -605,7 +611,7 @@ func (suite *AWSClientTestSuite) TestAWSClient_HandleLambdaEventHookError() {
 
 	snsRecord := events.SNSEventRecord{
 		SNS: events.SNSEntity{
-			MessageID: uuid.Must(uuid.NewV4()).String(),
+			MessageID: uuid.NewV4().String(),
 			Message:   msgJSON,
 		},
 	}
@@ -653,7 +659,7 @@ func (suite *AWSClientTestSuite) TestAWSClient_HandleLambdaEventContextCancel() 
 
 		snsRecords[i] = events.SNSEventRecord{
 			SNS: events.SNSEntity{
-				MessageID: uuid.Must(uuid.NewV4()).String(),
+				MessageID: uuid.NewV4().String(),
 				Message:   msgJSON,
 			},
 		}
@@ -696,7 +702,7 @@ func (suite *AWSClientTestSuite) TestAWSClient_HandleLambdaEventNoHook() {
 
 		snsRecords[i] = events.SNSEventRecord{
 			SNS: events.SNSEntity{
-				MessageID: uuid.Must(uuid.NewV4()).String(),
+				MessageID: uuid.NewV4().String(),
 				Message:   msgJSON,
 			},
 		}
@@ -735,8 +741,10 @@ func (suite *AWSClientTestSuite) TestAWSClient_HandleLambdaEventCallbackError() 
 		// Override time so comparison does not fail due to precision
 		message.Metadata.Timestamp = JSONTime(
 			time.Unix(0, int64(1)*int64(time.Hour)))
-		message.validate()
-		message.validateCallback(suite.settings)
+		err = message.validate()
+		suite.Require().NoError(err)
+		err = message.validateCallback(suite.settings)
+		suite.Require().NoError(err)
 		expectedMessages[i] = message
 
 		// Have to use Anything cause comparison fails for function pointers
@@ -747,7 +755,7 @@ func (suite *AWSClientTestSuite) TestAWSClient_HandleLambdaEventCallbackError() 
 
 		snsRecords[i] = events.SNSEventRecord{
 			SNS: events.SNSEntity{
-				MessageID: uuid.Must(uuid.NewV4()).String(),
+				MessageID: uuid.NewV4().String(),
 				Message:   msgJSON,
 			},
 		}
@@ -939,7 +947,7 @@ func (suite *AWSClientTestSuite) TestAWSClient_messageHandler() {
 	msgJSON, err := message.JSONString()
 	suite.Require().NoError(err)
 
-	receipt := uuid.Must(uuid.NewV4()).String()
+	receipt := uuid.NewV4().String()
 	message.Metadata.Receipt = receipt
 
 	fakeCallback.On("Callback", ctx, mock.Anything).Return(nil)
@@ -988,7 +996,7 @@ func (suite *AWSClientTestSuite) TestAWSClient_messageHandlerHookError() {
 	expectedError := errors.Errorf("Fake error!")
 	fakePreDeserializeHook.On("PreDeserializeHook", &ctx, &msgJSON).Return(expectedError)
 
-	receipt := uuid.Must(uuid.NewV4()).String()
+	receipt := uuid.NewV4().String()
 	err = awsClient.messageHandler(ctx, suite.settings, msgJSON, receipt)
 	assertions.EqualError(errors.Cause(err), "Fake error!")
 
@@ -1014,7 +1022,7 @@ func (suite *AWSClientTestSuite) TestAWSClient_messageHandlerNoHook() {
 	msgJSON, err := message.JSONString()
 	suite.Require().NoError(err)
 
-	receipt := uuid.Must(uuid.NewV4()).String()
+	receipt := uuid.NewV4().String()
 	message.Metadata.Receipt = receipt
 
 	fakeCallback.On("Callback", ctx, mock.Anything).Return(nil)
@@ -1044,7 +1052,7 @@ func (suite *AWSClientTestSuite) TestAWSClient_messageHandlerNoCallbackRegistry(
 	// Set to nil here so message can be created with no error
 	suite.settings.CallbackRegistry = nil
 
-	receipt := uuid.Must(uuid.NewV4()).String()
+	receipt := uuid.NewV4().String()
 	message.Metadata.Receipt = receipt
 
 	err = awsClient.messageHandler(ctx, suite.settings, msgJSON, receipt)
@@ -1067,7 +1075,7 @@ func (suite *AWSClientTestSuite) TestAWSClient_messageHandlerFailsOnValidationFa
 	msgJSON, err := message.JSONString()
 	suite.Require().NoError(err)
 
-	receipt := uuid.Must(uuid.NewV4()).String()
+	receipt := uuid.NewV4().String()
 
 	err = awsClient.messageHandler(ctx, suite.settings, msgJSON, receipt)
 	suite.Contains(err.Error(), "validate")
@@ -1090,15 +1098,17 @@ func (suite *AWSClientTestSuite) TestAWSClient_messageHandlerFailsOnCallbackFail
 	// Override time so comparison does not fail due to precision
 	message.Metadata.Timestamp = JSONTime(
 		time.Unix(0, int64(1)*int64(time.Hour)))
-	message.validate()
-	message.validateCallback(suite.settings)
+	err = message.validate()
+	suite.Require().NoError(err)
+	err = message.validateCallback(suite.settings)
+	suite.Require().NoError(err)
 
 	fakeCallback.On("Callback", ctx, mock.Anything).Return(errors.New("my bad"))
 
 	msgJSON, err := message.JSONString()
 	suite.Require().NoError(err)
 
-	receipt := uuid.Must(uuid.NewV4()).String()
+	receipt := uuid.NewV4().String()
 	message.Metadata.Receipt = receipt
 
 	err = awsClient.messageHandler(ctx, suite.settings, msgJSON, receipt)
@@ -1126,7 +1136,7 @@ func (suite *AWSClientTestSuite) TestAWSClient_messageHandlerFailsOnCallbackFail
 func (suite *AWSClientTestSuite) TestAWSClient_messageHandlerFailsOnBadJSON() {
 	ctx := context.Background()
 	awsClient := awsClient{}
-	receipt := uuid.Must(uuid.NewV4()).String()
+	receipt := uuid.NewV4().String()
 	messageJSON := "bad json-"
 	err := awsClient.messageHandler(ctx, suite.settings, string(messageJSON), receipt)
 	suite.NotNil(err)

@@ -158,7 +158,10 @@ func (m *Message) setDataSchema() error {
 // validate is a convenience wrapper to validate the current message
 func (m *Message) validate() error {
 	// Validate schema
-	m.setDataSchema()
+	err := m.setDataSchema()
+	if err != nil {
+		return err
+	}
 
 	return m.validator.Validate(m)
 }
@@ -217,10 +220,7 @@ func newMessageWithID(
 // NewMessage creates new Hedwig messages based off of message type and schema version
 func NewMessage(settings *Settings, dataType string, dataSchemaVersion string, headers map[string]string, data interface{}) (*Message, error) {
 	// Generate uuid for id
-	msgUUID, err := uuid.NewV4()
-	if err != nil {
-		return nil, err
-	}
+	msgUUID := uuid.NewV4()
 	msgID := msgUUID.String()
 
 	metadata, err := createMetadata(settings, headers)
