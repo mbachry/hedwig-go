@@ -6,7 +6,7 @@ require (
 	github.com/aws/aws-sdk-go v1.16.18
 	github.com/kr/pretty v0.1.0 // indirect
 	github.com/pkg/errors v0.8.1
-	github.com/santhosh-tekuri/jsonschema v1.2.4
+	github.com/santhosh-tekuri/jsonschema v1.2.5-0.20181206154329-5d49c9dfc783
 	github.com/satori/go.uuid v1.2.0
 	github.com/sirupsen/logrus v1.3.0
 	github.com/stretchr/testify v1.3.0
