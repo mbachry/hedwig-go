@@ -21,7 +21,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/sqs"
 	"github.com/aws/aws-sdk-go/service/sqs/sqsiface"
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -53,13 +52,16 @@ type awsClient struct {
 func (a *awsClient) processSQSMessage(ctx context.Context, settings *Settings,
 	queueMessage *sqs.Message, queueURL *string, queueName string, wg *sync.WaitGroup) {
 	defer wg.Done()
+	loggingFields := LoggingFields{
+		"message_sqs_id": *queueMessage.MessageId,
+	}
 	sqsRequest := &SQSRequest{
 		Context:      ctx,
 		QueueMessage: queueMessage,
 	}
 	if settings.PreProcessHookSQS != nil {
 		if err := settings.PreProcessHookSQS(sqsRequest); err != nil {
-			logrus.WithError(err).Errorf("Failed to execute pre process hook for message: %v", err)
+			settings.GetLogger(ctx).Error(err, "Failed to execute pre process hook for message", loggingFields)
 			return
 		}
 	}
@@ -72,12 +74,12 @@ func (a *awsClient) processSQSMessage(ctx context.Context, settings *Settings,
 			ReceiptHandle: queueMessage.ReceiptHandle,
 		})
 		if err != nil {
-			logrus.WithError(err).Errorf("Failed to delete message with error: %v", err)
+			settings.GetLogger(ctx).Error(err, "Failed to delete message", loggingFields)
 		}
 	case ErrRetry:
-		logrus.Debug("Retrying due to exception")
+		settings.GetLogger(ctx).Debug("Retrying due to exception", loggingFields)
 	default:
-		logrus.WithError(err).Errorf("Retrying due to unknown exception: %v", err)
+		settings.GetLogger(ctx).Error(err, "Retrying due to unknown exception", loggingFields)
 	}
 }
 
@@ -118,17 +120,22 @@ func (a *awsClient) FetchAndProcessMessages(ctx context.Context,
 	return ctx.Err()
 }
 
-func (a *awsClient) processSNSRecord(settings *Settings, request *LambdaRequest) error {
+func (a *awsClient) processSNSRecord(ctx context.Context, settings *Settings, request *LambdaRequest) error {
+	loggingFields := LoggingFields{
+		"message_sns_id": request.EventRecord.SNS.MessageID,
+	}
+
 	if settings.PreProcessHookLambda != nil {
 		if err := settings.PreProcessHookLambda(request); err != nil {
-			logrus.WithError(err).Errorf("failed to execute pre process hook for lambda event: %v", err)
+			settings.GetLogger(ctx).Error(
+				err, "failed to execute pre process hook for lambda event", loggingFields)
 			return errors.Wrapf(err, "failed to execute pre process hook")
 		}
 	}
 
 	err := a.messageHandlerLambda(settings, request)
 	if err != nil {
-		logrus.WithError(err).Errorf("failed to process lambda event with error: %v", err)
+		settings.GetLogger(ctx).Error(err, "failed to process lambda event", loggingFields)
 		return err
 	}
 	return nil
@@ -137,7 +144,7 @@ func (a *awsClient) processSNSRecord(settings *Settings, request *LambdaRequest)
 func (a *awsClient) HandleLambdaEvent(ctx context.Context, settings *Settings, snsEvent events.SNSEvent) error {
 	wg, childCtx := errgroup.WithContext(ctx)
 	for i := range snsEvent.Records {
-		request := &LambdaRequest{
+		req := &LambdaRequest{
 			Context:     childCtx,
 			EventRecord: &snsEvent.Records[i],
 		}
@@ -146,7 +153,7 @@ func (a *awsClient) HandleLambdaEvent(ctx context.Context, settings *Settings, s
 			// Do nothing
 		default:
 			wg.Go(func() error {
-				return a.processSNSRecord(settings, request)
+				return a.processSNSRecord(ctx, settings, req)
 			})
 
 		}
@@ -196,7 +203,14 @@ func (a *awsClient) getSQSQueueURL(ctx context.Context, queueName string) (*stri
 	return out.QueueUrl, nil
 }
 
-func (a *awsClient) messageHandler(ctx context.Context, settings *Settings, messageBody string, receipt string) error {
+func (a *awsClient) messageHandler(ctx context.Context, settings *Settings, messageBody string, receipt string,
+	additionalLoggingFields LoggingFields) error {
+	loggingFields := LoggingFields{
+		"message_body": messageBody,
+	}
+	for k, v := range additionalLoggingFields {
+		loggingFields[k] = v
+	}
 	var jsonData []byte
 	if settings.PreDeserializeHook != nil {
 		if err := settings.PreDeserializeHook(&ctx, &messageBody); err != nil {
@@ -213,7 +227,7 @@ func (a *awsClient) messageHandler(ctx context.Context, settings *Settings, mess
 	}
 	err := json.Unmarshal(jsonData, &message)
 	if err != nil {
-		logrus.WithError(err).Errorf("invalid message, unable to unmarshal")
+		settings.GetLogger(ctx).Error(err, "invalid message, unable to unmarshal", loggingFields)
 		return errors.Wrapf(err, "invalid message, unable to unmarshal")
 	}
 
@@ -234,11 +248,20 @@ func (a *awsClient) messageHandler(ctx context.Context, settings *Settings, mess
 }
 
 func (a *awsClient) messageHandlerSQS(settings *Settings, request *SQSRequest) error {
-	return a.messageHandler(request.Context, settings, *request.QueueMessage.Body, *request.QueueMessage.ReceiptHandle)
+	loggingFields := LoggingFields{
+		"message_sqs_id": *request.QueueMessage.MessageId,
+	}
+	return a.messageHandler(
+		request.Context, settings, *request.QueueMessage.Body, *request.QueueMessage.ReceiptHandle,
+		loggingFields,
+	)
 }
 
 func (a *awsClient) messageHandlerLambda(settings *Settings, request *LambdaRequest) error {
-	return a.messageHandler(request.Context, settings, request.EventRecord.SNS.Message, "")
+	loggingFields := LoggingFields{
+		"message_sns_id": request.EventRecord.SNS.MessageID,
+	}
+	return a.messageHandler(request.Context, settings, request.EventRecord.SNS.Message, "", loggingFields)
 }
 
 func newAWSClient(sessionCache *AWSSessionsCache, settings *Settings) iAmazonWebServicesClient {

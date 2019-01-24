@@ -39,6 +39,9 @@ type SQSRequest struct {
 	QueueMessage *sqs.Message
 }
 
+// GetLoggerFunc returns the logger object
+type GetLoggerFunc func(ctx context.Context) Logger
+
 // MessageDefaultHeadersHook is called to return default headers per message
 type MessageDefaultHeadersHook func(ctx context.Context, message *Message) map[string]string
 
@@ -76,6 +79,11 @@ type Settings struct {
 
 	// CallbackRegistry contains callbacks and message data factories by message type and message version
 	CallbackRegistry *CallbackRegistry
+
+	// GetLogger is a function that takes the context object and returns a logger. This may be used to plug in
+	// your desired logger library. Defaults to using std library.
+	// Convenience structs are provided for popular libraries: LogrusGetLoggerFunc
+	GetLogger GetLoggerFunc
 
 	// Returns default headers for a message before a message is published. This will apply to ALL messages.
 	// Can be used to inject custom headers (i.e. request id).
@@ -117,5 +125,9 @@ func (s *Settings) initDefaults() {
 	}
 	if s.ShutdownTimeout == 0 {
 		s.ShutdownTimeout = 10 * time.Second
+	}
+	if s.GetLogger == nil {
+		stdLogger := &stdLogger{}
+		s.GetLogger = func(_ context.Context) Logger { return stdLogger }
 	}
 }

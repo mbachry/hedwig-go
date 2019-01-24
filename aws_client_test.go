@@ -12,7 +12,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"sync"
 	"testing"
 	"time"
 
@@ -24,9 +24,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/sqs"
 	"github.com/aws/aws-sdk-go/service/sqs/sqsiface"
 	"github.com/pkg/errors"
-	"github.com/satori/go.uuid"
-	"github.com/sirupsen/logrus"
-	"github.com/sirupsen/logrus/hooks/test"
+	uuid "github.com/satori/go.uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
@@ -134,6 +132,42 @@ func (fpdh *FakePreDeserializeHook) PreDeserializeHook(ctx *context.Context, mes
 	return args.Error(0)
 }
 
+type fakeLog struct {
+	level   string
+	err     error
+	message string
+	fields  LoggingFields
+}
+
+type fakeLogger struct {
+	lock sync.Mutex
+	logs []fakeLog
+}
+
+func (f *fakeLogger) Error(err error, message string, fields LoggingFields) {
+	f.lock.Lock()
+	defer f.lock.Unlock()
+	f.logs = append(f.logs, fakeLog{"error", err, message, fields})
+}
+
+func (f *fakeLogger) Warn(err error, message string, fields LoggingFields) {
+	f.lock.Lock()
+	defer f.lock.Unlock()
+	f.logs = append(f.logs, fakeLog{"warn", err, message, fields})
+}
+
+func (f *fakeLogger) Info(message string, fields LoggingFields) {
+	f.lock.Lock()
+	defer f.lock.Unlock()
+	f.logs = append(f.logs, fakeLog{"info", nil, message, fields})
+}
+
+func (f *fakeLogger) Debug(message string, fields LoggingFields) {
+	f.lock.Lock()
+	defer f.lock.Unlock()
+	f.logs = append(f.logs, fakeLog{"debug", nil, message, fields})
+}
+
 type AWSClientTestSuite struct {
 	suite.Suite
 	fakeCallback *FakeCallback
@@ -150,9 +184,6 @@ func (suite *AWSClientTestSuite) SetupTest() {
 	suite.settings.CallbackRegistry.RegisterCallback(
 		cbk, suite.fakeCallback.Callback, func() interface{} { return new(FakeHedwigDataField) })
 
-}
-
-func (suite *AWSClientTestSuite) TearDownTest() {
 }
 
 func (suite *AWSClientTestSuite) TestGetSqsQueueName() {
@@ -225,6 +256,7 @@ func (suite *AWSClientTestSuite) TestAWSClient_FetchAndProcessMessages() {
 		suite.Require().NoError(err)
 
 		outMessages[i] = &sqs.Message{
+			MessageId:     aws.String(uuid.NewV4().String()),
 			Body:          aws.String(msgJSON),
 			ReceiptHandle: aws.String(uuid.NewV4().String()),
 		}
@@ -324,6 +356,7 @@ func (suite *AWSClientTestSuite) TestAWSClient_FetchAndProcessMessagesHookError(
 		suite.Require().NoError(err)
 
 		outMessages[i] = &sqs.Message{
+			MessageId:     aws.String(uuid.NewV4().String()),
 			Body:          aws.String(msgJSON),
 			ReceiptHandle: aws.String(uuid.NewV4().String()),
 		}
@@ -387,6 +420,7 @@ func (suite *AWSClientTestSuite) TestAWSClient_FetchAndProcessMessagesNoHook() {
 		suite.Require().NoError(err)
 
 		outMessages[i] = &sqs.Message{
+			MessageId:     aws.String(uuid.NewV4().String()),
 			Body:          aws.String(msgJSON),
 			ReceiptHandle: aws.String(uuid.NewV4().String()),
 		}
@@ -419,9 +453,9 @@ func (suite *AWSClientTestSuite) TestAWSClient_FetchAndProcessMessagesNoHook() {
 
 func (suite *AWSClientTestSuite) TestAWSClient_FetchAndProcessMessagesNoDeleteOnError() {
 	ctx := context.Background()
-	hook := test.NewGlobal()
-	logrus.StandardLogger().Out = ioutil.Discard
-	defer hook.Reset()
+
+	logger := &fakeLogger{}
+	suite.settings.GetLogger = func(_ context.Context) Logger { return logger }
 
 	fakeCallback := suite.fakeCallback
 	fakeSqs := &FakeSQS{}
@@ -466,6 +500,7 @@ func (suite *AWSClientTestSuite) TestAWSClient_FetchAndProcessMessagesNoDeleteOn
 	receiveMessageOutput := &sqs.ReceiveMessageOutput{
 		Messages: []*sqs.Message{
 			{
+				MessageId:     aws.String(uuid.NewV4().String()),
 				Body:          aws.String(msgJSON),
 				ReceiptHandle: aws.String(uuid.NewV4().String()),
 			},
@@ -481,9 +516,10 @@ func (suite *AWSClientTestSuite) TestAWSClient_FetchAndProcessMessagesNoDeleteOn
 	// no error is returned here, but we log the error
 	suite.NoError(err)
 
-	suite.Equal(1, len(hook.Entries))
-	suite.Equal(logrus.ErrorLevel, hook.LastEntry().Level)
-	suite.Equal("Retrying due to unknown exception: my bad", hook.LastEntry().Message)
+	suite.Equal(1, len(logger.logs))
+	suite.Equal("error", logger.logs[0].level)
+	suite.Equal("Retrying due to unknown exception", logger.logs[0].message)
+	suite.EqualError(logger.logs[0].err, "my bad")
 
 	fakeCallback.AssertExpectations(suite.T())
 	fakeSqs.AssertExpectations(suite.T())
@@ -720,9 +756,9 @@ func (suite *AWSClientTestSuite) TestAWSClient_HandleLambdaEventNoHook() {
 
 func (suite *AWSClientTestSuite) TestAWSClient_HandleLambdaEventCallbackError() {
 	ctx := context.Background()
-	hook := test.NewGlobal()
-	logrus.StandardLogger().Out = ioutil.Discard
-	defer hook.Reset()
+
+	logger := &fakeLogger{}
+	suite.settings.GetLogger = func(_ context.Context) Logger { return logger }
 
 	awsClient := &awsClient{}
 
@@ -769,9 +805,13 @@ func (suite *AWSClientTestSuite) TestAWSClient_HandleLambdaEventCallbackError() 
 
 	fakeCallback.AssertExpectations(suite.T())
 
-	suite.Equal(2, len(hook.Entries))
-	suite.Equal(logrus.ErrorLevel, hook.LastEntry().Level)
-	suite.Equal("failed to process lambda event with error: my bad", hook.LastEntry().Message)
+	suite.Equal(2, len(logger.logs))
+	suite.Equal("error", logger.logs[0].level)
+	suite.Equal("failed to process lambda event", logger.logs[0].message)
+	suite.EqualError(logger.logs[0].err, "my bad")
+	suite.Equal("error", logger.logs[1].level)
+	suite.Equal("failed to process lambda event", logger.logs[1].message)
+	suite.EqualError(logger.logs[1].err, "my bad")
 
 	suite.Require().Equal(len(fakeCallback.Calls), len(expectedMessages))
 	for _, expectedMsg := range expectedMessages {
@@ -957,7 +997,7 @@ func (suite *AWSClientTestSuite) TestAWSClient_messageHandler() {
 	suite.Require().NoError(err)
 	fakePreDeserializeHook.On("PreDeserializeHook", &ctx, &msgJSON).Return(nil)
 
-	err = awsClient.messageHandler(ctx, suite.settings, msgJSON, receipt)
+	err = awsClient.messageHandler(ctx, suite.settings, msgJSON, receipt, nil)
 	assertions.Nil(err)
 
 	fakeCallback.AssertExpectations(suite.T())
@@ -997,7 +1037,7 @@ func (suite *AWSClientTestSuite) TestAWSClient_messageHandlerHookError() {
 	fakePreDeserializeHook.On("PreDeserializeHook", &ctx, &msgJSON).Return(expectedError)
 
 	receipt := uuid.NewV4().String()
-	err = awsClient.messageHandler(ctx, suite.settings, msgJSON, receipt)
+	err = awsClient.messageHandler(ctx, suite.settings, msgJSON, receipt, nil)
 	assertions.EqualError(errors.Cause(err), "Fake error!")
 
 	fakeCallback.AssertExpectations(suite.T())
@@ -1027,7 +1067,7 @@ func (suite *AWSClientTestSuite) TestAWSClient_messageHandlerNoHook() {
 
 	fakeCallback.On("Callback", ctx, mock.Anything).Return(nil)
 
-	err = awsClient.messageHandler(ctx, suite.settings, msgJSON, receipt)
+	err = awsClient.messageHandler(ctx, suite.settings, msgJSON, receipt, nil)
 	assertions.Nil(err)
 
 	fakeCallback.AssertExpectations(suite.T())
@@ -1055,7 +1095,7 @@ func (suite *AWSClientTestSuite) TestAWSClient_messageHandlerNoCallbackRegistry(
 	receipt := uuid.NewV4().String()
 	message.Metadata.Receipt = receipt
 
-	err = awsClient.messageHandler(ctx, suite.settings, msgJSON, receipt)
+	err = awsClient.messageHandler(ctx, suite.settings, msgJSON, receipt, nil)
 	assertions.Contains(err.Error(), "callbackRegistry is required")
 
 	fakeCallback.AssertExpectations(suite.T())
@@ -1077,7 +1117,7 @@ func (suite *AWSClientTestSuite) TestAWSClient_messageHandlerFailsOnValidationFa
 
 	receipt := uuid.NewV4().String()
 
-	err = awsClient.messageHandler(ctx, suite.settings, msgJSON, receipt)
+	err = awsClient.messageHandler(ctx, suite.settings, msgJSON, receipt, nil)
 	suite.Contains(err.Error(), "validate")
 
 	suite.True(fakeCallback.AssertNotCalled(suite.T(), "Callback"))
@@ -1111,7 +1151,7 @@ func (suite *AWSClientTestSuite) TestAWSClient_messageHandlerFailsOnCallbackFail
 	receipt := uuid.NewV4().String()
 	message.Metadata.Receipt = receipt
 
-	err = awsClient.messageHandler(ctx, suite.settings, msgJSON, receipt)
+	err = awsClient.messageHandler(ctx, suite.settings, msgJSON, receipt, nil)
 	suite.EqualError(err, "my bad")
 
 	fakeCallback.AssertExpectations(suite.T())
@@ -1138,7 +1178,7 @@ func (suite *AWSClientTestSuite) TestAWSClient_messageHandlerFailsOnBadJSON() {
 	awsClient := awsClient{}
 	receipt := uuid.NewV4().String()
 	messageJSON := "bad json-"
-	err := awsClient.messageHandler(ctx, suite.settings, string(messageJSON), receipt)
+	err := awsClient.messageHandler(ctx, suite.settings, string(messageJSON), receipt, nil)
 	suite.NotNil(err)
 }
 
