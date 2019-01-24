@@ -14,4 +14,6 @@ import (
 )
 
 // compile time check for LogrusGetLoggerFunc
-var _ = GetLoggerFunc(LogrusGetLoggerFunc(func(_ context.Context) logrus.FieldLogger { return logrus.New() }))
+var _ = GetLoggerFunc(LogrusGetLoggerFunc(func(_ context.Context) *logrus.Entry {
+	return logrus.NewEntry(logrus.StandardLogger())
+}))

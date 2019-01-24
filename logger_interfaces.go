@@ -53,7 +53,7 @@ func (l *logrusLogger) Debug(message string, fields LoggingFields) {
 	l.WithFields(logrus.Fields(fields)).Debug(message)
 }
 
-func LogrusGetLoggerFunc(fn func(ctx context.Context) logrus.FieldLogger) GetLoggerFunc {
+func LogrusGetLoggerFunc(fn func(ctx context.Context) *logrus.Entry) GetLoggerFunc {
 	return func(ctx context.Context) Logger {
 		return &logrusLogger{fn(ctx)}
 	}
